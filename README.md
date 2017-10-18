@@ -10,4 +10,5 @@ scoop install gcc -a 32bit
 ```
 cmake ../ddraw -G "Unix Makefiles"
 make
+ctest
 ```

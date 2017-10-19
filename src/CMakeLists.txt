@@ -4,6 +4,8 @@ project (ddraw)
 
 enable_testing ()
 
+add_definitions (-D_NTDDDISK_H_) # Avoiding redefinition of Unknown.
+
 add_library (ddraw SHARED ddraw.cpp)
 set_target_properties (ddraw PROPERTIES PREFIX "")
 set_target_properties (ddraw PROPERTIES COMPILE_FLAGS "-m32")

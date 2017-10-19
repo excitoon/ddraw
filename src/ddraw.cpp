@@ -1,37 +1,19 @@
-#include <string>
-#include <iostream>
-
 #include <windows.h>
+#include <ddraw.h>
 
-std::string getSystemDirectory()
-{
-	char buf[8192] = { 0 };
-	GetSystemDirectory(buf, sizeof(buf));
-	return buf;
-}
+#include "DirectDrawHolder.h"
+
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
 	switch (fdwReason)
 	{
 		case DLL_PROCESS_ATTACH:
-			std::cout << "DLL_PROCESS_ATTACH\n";
-			// Code to run when the DLL is loaded
+			DirectDrawHolder::openDirectDraw();
 			break;
 
 		case DLL_PROCESS_DETACH:
-			std::cout << "DLL_PROCESS_DETACH\n";
-			// Code to run when the DLL is freed
-			break;
-
-		case DLL_THREAD_ATTACH:
-			std::cout << "DLL_THREAD_ATTACH\n";
-			// Code to run when a thread is created during the DLL's lifetime
-			break;
-
-		case DLL_THREAD_DETACH:
-			std::cout << "DLL_THREAD_DETACH\n";
-			// Code to run when a thread ends normally.
+			DirectDrawHolder::closeDirectDraw();
 			break;
 	}
 
@@ -41,4 +23,14 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 extern "C" __declspec(dllexport) int hello()
 {
 	return 42;
+}
+
+extern "C" __declspec(dllexport) HRESULT WINAPI DirectDrawCreate(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter)
+{
+	return DirectDrawHolder::DirectDrawCreate(lpGUID, lplpDD, pUnkOuter);
+}
+
+extern "C" __declspec(dllexport) HRESULT WINAPI DirectDrawEnumerate(LPDDENUMCALLBACK lpCallback, LPVOID lpContext)
+{
+	return DirectDrawHolder::DirectDrawEnumerate(lpCallback, lpContext);
 }

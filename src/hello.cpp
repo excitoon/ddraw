@@ -2,7 +2,7 @@
 
 int main()
 {
-	typedef int (__attribute__((__stdcall__))*pfunc)();
+	typedef int (__attribute__((__stdcall__)) * pfunc)();
 	HANDLE hdll;
 	pfunc hello;
 	hdll = LoadLibrary("ddraw.dll");

@@ -5,14 +5,32 @@
 #include "Unknown.h"
 
 
-class DirectDrawSurface7 : public Unknown<DirectDrawSurface7>
+template <typename SurfaceHolder>
+class DirectDrawSurface7 : public Unknown<DirectDrawSurface7<SurfaceHolder>>
 {
     IDirectDrawSurface7 * underlying;
+    SurfaceHolder & surface_holder;
 
 public:
+    DirectDrawSurface7(SurfaceHolder & surface_holder, IDirectDrawSurface7 * underlying):
+        Unknown<DirectDrawSurface7>(underlying),
+        underlying(underlying),
+        surface_holder(surface_holder)
+    {
+    }
+
+    ~DirectDrawSurface7()
+    {
+    }
+
+    SurfaceHolder & getSurfaceHolder()
+    {
+        return surface_holder;
+    }
+
     virtual __stdcall HRESULT AddAttachedSurface(LPDIRECTDRAWSURFACE7 arg)
     {
-        return underlying->AddAttachedSurface(arg);
+        return underlying->AddAttachedSurface(surface_holder.getOriginalSurface(arg));
     }
 
     virtual __stdcall HRESULT AddOverlayDirtyRect(LPRECT arg)
@@ -22,7 +40,7 @@ public:
 
     virtual __stdcall HRESULT Blt(LPRECT arg1, LPDIRECTDRAWSURFACE7 arg2, LPRECT arg3, DWORD arg4, LPDDBLTFX arg5)
     {
-        return underlying->Blt(arg1, arg2, arg3, arg4, arg5);
+        return underlying->Blt(arg1, surface_holder.getOriginalSurface(arg2), arg3, arg4, arg5);
     }
 
     virtual __stdcall HRESULT BltBatch(LPDDBLTBATCH arg1, DWORD arg2, DWORD arg3)
@@ -32,32 +50,51 @@ public:
 
     virtual __stdcall HRESULT BltFast(DWORD arg1, DWORD arg2, LPDIRECTDRAWSURFACE7 arg3, LPRECT arg4, DWORD arg5)
     {
-        return underlying->BltFast(arg1, arg2, arg3, arg4, arg5);
+        return underlying->BltFast(arg1, arg2, surface_holder.getOriginalSurface(arg3), arg4, arg5);
     }
 
     virtual __stdcall HRESULT DeleteAttachedSurface(DWORD arg1, LPDIRECTDRAWSURFACE7 arg2)
     {
-        return underlying->DeleteAttachedSurface(arg1, arg2);
+        return underlying->DeleteAttachedSurface(arg1, surface_holder.getOriginalSurface(arg2));
     }
 
-    virtual __stdcall HRESULT EnumAttachedSurfaces(LPVOID arg1, LPDDENUMSURFACESCALLBACK7 arg2)
+    struct WrapperContext
     {
-        return underlying->EnumAttachedSurfaces(arg1, arg2);
+        LPVOID lpContext;
+        LPDDENUMSURFACESCALLBACK7 lpEnumSurfacesCallback;
+        DWORD dwFlags;
+        DirectDrawSurface7<SurfaceHolder> & direct_draw_surface7;
+    };
+
+    static __stdcall HRESULT EnumSurfacesCallback7(LPDIRECTDRAWSURFACE7 lpDDSurface, LPDDSURFACEDESC2 lpDDSurfaceDesc, LPVOID lpContext)
+    {
+        WrapperContext & context = *static_cast<WrapperContext *>(lpContext);
+        return context.lpEnumSurfacesCallback(context.direct_draw_surface7.getSurfaceHolder().getWrappedSurface(lpDDSurface), lpDDSurfaceDesc, context.lpContext);
     }
 
-    virtual __stdcall HRESULT EnumOverlayZOrders(DWORD arg1, LPVOID arg2, LPDDENUMSURFACESCALLBACK7 arg3)
+    virtual __stdcall HRESULT EnumAttachedSurfaces(LPVOID lpContext, LPDDENUMSURFACESCALLBACK7 lpEnumSurfacesCallback)
     {
-        return underlying->EnumOverlayZOrders(arg1, arg2, arg3);
+        WrapperContext wrapper_context{ lpContext, lpEnumSurfacesCallback, 0, *this };
+        return underlying->EnumAttachedSurfaces(static_cast<LPVOID>(&wrapper_context), EnumSurfacesCallback7);
+    }
+
+    virtual __stdcall HRESULT EnumOverlayZOrders(DWORD dwFlags, LPVOID lpContext, LPDDENUMSURFACESCALLBACK7 lpfnCallback)
+    {
+        WrapperContext wrapper_context{ lpContext, lpfnCallback, dwFlags, *this };
+        return underlying->EnumOverlayZOrders(dwFlags, static_cast<LPVOID>(&wrapper_context), EnumSurfacesCallback7);
     }
 
     virtual __stdcall HRESULT Flip(LPDIRECTDRAWSURFACE7 arg1, DWORD arg2)
     {
-        return underlying->Flip(arg1, arg2);
+        return underlying->Flip(surface_holder.getOriginalSurface(arg1), arg2);
     }
 
-    virtual __stdcall HRESULT GetAttachedSurface(LPDDSCAPS2 arg1, LPDIRECTDRAWSURFACE7 FAR * arg2)
+    virtual __stdcall HRESULT GetAttachedSurface(LPDDSCAPS2 lpDDSCaps, LPDIRECTDRAWSURFACE7 FAR * lplpDDAttachedSurface)
     {
-        return underlying->GetAttachedSurface(arg1, arg2);
+        LPDIRECTDRAWSURFACE7 lpDDAttachedSurface = nullptr;
+        HRESULT result = underlying->GetAttachedSurface(lpDDSCaps, &lpDDAttachedSurface);
+        *lplpDDAttachedSurface = surface_holder.getWrappedSurface(lpDDAttachedSurface);
+        return result;
     }
 
     virtual __stdcall HRESULT GetBltStatus(DWORD arg)
@@ -120,9 +157,9 @@ public:
         return underlying->IsLost();
     }
 
-    virtual __stdcall HRESULT Lock(LPRECT arg1, LPDDSURFACEDESC2 arg2, DWORD arg3, HANDLE arg4)
+    virtual __stdcall HRESULT Lock(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSurfaceDesc, DWORD dwFlags, HANDLE hEvent)
     {
-        return underlying->Lock(arg1, arg2, arg3, arg4);
+        return underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent);
     }
 
     virtual __stdcall HRESULT ReleaseDC(HDC arg)
@@ -155,14 +192,14 @@ public:
         return underlying->SetPalette(arg);
     }
 
-    virtual __stdcall HRESULT Unlock(LPRECT arg)
+    virtual __stdcall HRESULT Unlock(LPRECT lpRect)
     {
-        return underlying->Unlock(arg);
+        return underlying->Unlock(lpRect);
     }
 
     virtual __stdcall HRESULT UpdateOverlay(LPRECT arg1, LPDIRECTDRAWSURFACE7 arg2, LPRECT arg3, DWORD arg4, LPDDOVERLAYFX arg5)
     {
-        return underlying->UpdateOverlay(arg1, arg2, arg3, arg4, arg5);
+        return underlying->UpdateOverlay(arg1, surface_holder.getOriginalSurface(arg2), arg3, arg4, arg5);
     }
 
     virtual __stdcall HRESULT UpdateOverlayDisplay(DWORD arg)
@@ -172,12 +209,15 @@ public:
 
     virtual __stdcall HRESULT UpdateOverlayZOrder(DWORD arg1, LPDIRECTDRAWSURFACE7 arg2)
     {
-        return underlying->UpdateOverlayZOrder(arg1, arg2);
+        return underlying->UpdateOverlayZOrder(arg1, surface_holder.getOriginalSurface(arg2));
     }
 
-    virtual __stdcall HRESULT GetDDInterface(LPVOID FAR * arg)
+    virtual __stdcall HRESULT GetDDInterface(LPVOID FAR * lplpDD)
     {
-        return underlying->GetDDInterface(arg);
+        LPVOID lpDD;
+        HRESULT result = underlying->GetDDInterface(&lpDD);
+        *lplpDD = static_cast<LPVOID>(&surface_holder);
+        return result;
     }
 
     virtual __stdcall HRESULT PageLock(DWORD arg)
@@ -238,15 +278,5 @@ public:
     virtual __stdcall HRESULT GetLOD(LPDWORD arg)
     {
         return underlying->GetLOD(arg);
-    }
-
-    DirectDrawSurface7(IDirectDrawSurface7 * underlying):
-        Unknown<DirectDrawSurface7>(underlying),
-        underlying(underlying)
-    {
-    }
-
-    ~DirectDrawSurface7()
-    {
     }
 };

@@ -1,15 +1,78 @@
 #pragma once
 
+#include <unordered_map>
+#include <stdexcept>
+
 #include <windows.h>
 
 #include "Unknown.h"
+#include "DirectDrawSurface7.h"
 
 
 class DirectDraw7 : public Unknown<DirectDraw7>
 {
     IDirectDraw7 * underlying;
+    std::unordered_map<LPDIRECTDRAWSURFACE7, DirectDrawSurface7<DirectDraw7> *> wrapped_surfaces;
+    std::unordered_map<DirectDrawSurface7<DirectDraw7> *, LPDIRECTDRAWSURFACE7> original_surfaces;
+    /// TODO: Clear them on IDirectDrawSurface7::Release().
 
 public:
+    DirectDraw7(IDirectDraw7 * underlying):
+        Unknown<DirectDraw7>(underlying),
+        underlying(underlying)
+    {
+    }
+
+    ~DirectDraw7()
+    {
+    }
+
+    LPDIRECTDRAWSURFACE7 getWrappedSurface(LPDIRECTDRAWSURFACE7 lpDDSurface)
+    {
+        if (lpDDSurface != nullptr)
+        {
+            if (wrapped_surfaces.count(lpDDSurface) > 0)
+            {
+                DirectDrawSurface7<DirectDraw7> * surface = wrapped_surfaces[lpDDSurface];
+                return reinterpret_cast<LPDIRECTDRAWSURFACE7>(surface);
+            }
+            else
+            {
+                DirectDrawSurface7<DirectDraw7> * surface = new DirectDrawSurface7<DirectDraw7>(*this, lpDDSurface);
+                /// TODO: Wrapper surfaces are not being deleted sometimes, when last Release() is called in
+                /// DirectX code. Some DirectX calls require special handling to fix that.
+                /// I don't call AddRef() on original interfaces when it is needed in some cases.
+
+                wrapped_surfaces[lpDDSurface] = surface;
+                original_surfaces[surface] = lpDDSurface;
+                return reinterpret_cast<LPDIRECTDRAWSURFACE7>(surface);
+            }
+        }
+        else
+        {
+            return lpDDSurface;
+        }
+    }
+
+    LPDIRECTDRAWSURFACE7 getOriginalSurface(LPDIRECTDRAWSURFACE7 lpDDSurface)
+    {
+        if (lpDDSurface == nullptr)
+        {
+            return lpDDSurface;
+        }
+
+        DirectDrawSurface7<DirectDraw7> * surface = reinterpret_cast<DirectDrawSurface7<DirectDraw7> *>(lpDDSurface);
+        if (original_surfaces.count(surface) > 0)
+        {
+            return reinterpret_cast<LPDIRECTDRAWSURFACE7>(original_surfaces[surface]);
+        }
+        else
+        {
+            /// Logic error, wrong surface.
+            return lpDDSurface;
+        }
+    }
+
     virtual __stdcall HRESULT Compact()
     {
         return underlying->Compact();
@@ -25,14 +88,20 @@ public:
         return underlying->CreatePalette(arg1, arg2, arg3, arg4);
     }
 
-    virtual __stdcall HRESULT CreateSurface(LPDDSURFACEDESC2 arg1, LPDIRECTDRAWSURFACE7 FAR * arg2, IUnknown FAR * arg3)
+    virtual __stdcall HRESULT CreateSurface(LPDDSURFACEDESC2 lpDDSurfaceDesc2, LPDIRECTDRAWSURFACE7 FAR * lplpDDSurface, IUnknown FAR * pUnkOuter)
     {
-        return underlying->CreateSurface(arg1, arg2, arg3);
+        LPDIRECTDRAWSURFACE7 lpDDSurface = nullptr;
+        HRESULT result = underlying->CreateSurface(lpDDSurfaceDesc2, &lpDDSurface, pUnkOuter);
+        *lplpDDSurface = getWrappedSurface(lpDDSurface);
+        return result;
     }
 
-    virtual __stdcall HRESULT DuplicateSurface(LPDIRECTDRAWSURFACE7 arg1, LPDIRECTDRAWSURFACE7 FAR * arg2)
+    virtual __stdcall HRESULT DuplicateSurface(LPDIRECTDRAWSURFACE7 lpDDSurface, LPDIRECTDRAWSURFACE7 FAR * lplpDupDDSurface)
     {
-        return underlying->DuplicateSurface(arg1, arg2);
+        LPDIRECTDRAWSURFACE7 lpDupDDSurface = nullptr;
+        HRESULT result = underlying->DuplicateSurface(getOriginalSurface(lpDDSurface), &lpDupDDSurface);
+        *lplpDupDDSurface = getWrappedSurface(lpDupDDSurface);
+        return result;
     }
 
     virtual __stdcall HRESULT EnumDisplayModes(DWORD arg1, LPDDSURFACEDESC2 arg2, LPVOID arg3, LPDDENUMMODESCALLBACK2 arg4)
@@ -40,9 +109,24 @@ public:
         return underlying->EnumDisplayModes(arg1, arg2, arg3, arg4);
     }
 
-    virtual __stdcall HRESULT EnumSurfaces(DWORD arg1, LPDDSURFACEDESC2 arg2, LPVOID arg3, LPDDENUMSURFACESCALLBACK7 arg4)
+    struct WrapperContext
     {
-        return underlying->EnumSurfaces(arg1, arg2, arg3, arg4);
+        LPVOID lpContext;
+        LPDDENUMSURFACESCALLBACK7 lpEnumSurfacesCallback;
+        DWORD dwFlags;
+        DirectDraw7 & direct_draw7;
+    };
+
+    static __stdcall HRESULT EnumSurfacesCallback7(LPDIRECTDRAWSURFACE7 lpDDSurface, LPDDSURFACEDESC2 lpDDSurfaceDesc, LPVOID lpContext)
+    {
+        WrapperContext & context = *static_cast<WrapperContext *>(lpContext);
+        return context.lpEnumSurfacesCallback(context.direct_draw7.getWrappedSurface(lpDDSurface), lpDDSurfaceDesc, context.lpContext);
+    }
+
+    virtual __stdcall HRESULT EnumSurfaces(DWORD dwFlags, LPDDSURFACEDESC2 lpDDSD2, LPVOID lpContext, LPDDENUMSURFACESCALLBACK7 lpEnumSurfacesCallback)
+    {
+        WrapperContext wrapper_context{ lpContext, lpEnumSurfacesCallback, dwFlags, *this };
+        return underlying->EnumSurfaces(dwFlags, lpDDSD2, static_cast<LPVOID>(&wrapper_context), EnumSurfacesCallback7);
     }
 
     virtual __stdcall HRESULT FlipToGDISurface()
@@ -65,9 +149,12 @@ public:
         return underlying->GetFourCCCodes(arg1, arg2);
     }
 
-    virtual __stdcall HRESULT GetGDISurface(LPDIRECTDRAWSURFACE7 FAR * arg)
+    virtual __stdcall HRESULT GetGDISurface(LPDIRECTDRAWSURFACE7 FAR * lplpGDIDDSSurface)
     {
-        return underlying->GetGDISurface(arg);
+        LPDIRECTDRAWSURFACE7 lpGDIDDSSurface = nullptr;
+        HRESULT result = underlying->GetGDISurface(&lpGDIDDSSurface);
+        *lplpGDIDDSSurface = getWrappedSurface(lpGDIDDSSurface);
+        return result;
     }
 
     virtual __stdcall HRESULT GetMonitorFrequency(LPDWORD arg)
@@ -115,9 +202,12 @@ public:
         return underlying->GetAvailableVidMem(arg1, arg2, arg3);
     }
 
-    virtual __stdcall HRESULT GetSurfaceFromDC(HDC arg1, LPDIRECTDRAWSURFACE7 * arg2)
+    virtual __stdcall HRESULT GetSurfaceFromDC(HDC hdc, LPDIRECTDRAWSURFACE7 * lplpDDS)
     {
-        return underlying->GetSurfaceFromDC(arg1, arg2);
+        LPDIRECTDRAWSURFACE7 lpDDS = nullptr;
+        HRESULT result = underlying->GetSurfaceFromDC(hdc, &lpDDS);
+        *lplpDDS = getWrappedSurface(lpDDS);
+        return result;
     }
 
     virtual __stdcall HRESULT RestoreAllSurfaces()
@@ -143,15 +233,5 @@ public:
     virtual __stdcall HRESULT EvaluateMode(DWORD arg1, DWORD * arg2)
     {
         return underlying->EvaluateMode(arg1, arg2);
-    }
-
-    DirectDraw7(IDirectDraw7 * underlying):
-        Unknown<DirectDraw7>(underlying),
-        underlying(underlying)
-    {
-    }
-
-    ~DirectDraw7()
-    {
     }
 };

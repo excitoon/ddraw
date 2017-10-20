@@ -6,7 +6,6 @@
 template <typename Final>
 class Unknown
 {
-    size_t ref_count = 1;
     IUnknown * underlying;
 
 public:
@@ -20,19 +19,19 @@ public:
         return static_cast<Final *>(this);
     }
 
-    virtual __attribute__((__stdcall__)) void QueryInterface(REFIID riid, void ** ppvObject)
+    virtual __stdcall HRESULT QueryInterface(REFIID riid, void ** ppvObject)
     {
-        underlying->QueryInterface(riid, ppvObject);
+        return underlying->QueryInterface(riid, ppvObject);
     }
 
-    virtual __attribute__((__stdcall__)) size_t AddRef()
+    virtual __stdcall ULONG AddRef()
     {
-        return ++ref_count;
+        return underlying->AddRef();
     }
 
-    virtual __attribute__((__stdcall__)) size_t Release()
+    virtual __stdcall ULONG Release()
     {
-        --ref_count;
+        ULONG ref_count = underlying->Release();
         if (ref_count == 0)
         {
             delete getFinal();

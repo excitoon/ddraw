@@ -50,7 +50,7 @@ public:
 
     static HRESULT WINAPI DirectDrawCreate(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter)
     {
-        LPDIRECTDRAW lpDD;
+        LPDIRECTDRAW lpDD = nullptr;
         HRESULT result = OriginalDirectDrawCreate(lpGUID, &lpDD, pUnkOuter);
         if (lpDD != nullptr)
         {

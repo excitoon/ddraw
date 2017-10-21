@@ -275,7 +275,7 @@ public:
         else
         {
             result = scheduler.makeTask<HRESULT>([&]() { return underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent); });
-            if (result == DD_OK && Constants::Emulate16BitsPerPixel)
+            if (Constants::Emulate16BitsPerPixel && lpDDSurfaceDesc != nullptr)
             {
                 lpDDSurfaceDesc->ddpfPixelFormat.dwRGBBitCount = 16;
                 lpDDSurfaceDesc->ddpfPixelFormat.dwRBitMask = 0xF800;

@@ -23,10 +23,9 @@ public:
     };
 
 private:
-    Level filter;
+    Level filter = Level::Warning;
 
 public:
-
     class Log
     {
         std::ofstream * log = nullptr;

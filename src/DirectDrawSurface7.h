@@ -1,10 +1,16 @@
 #pragma once
 
 #include <vector>
+#include <tuple>
+#include <utility>
+#include <unordered_map>
+#include <chrono>
+
 #include <windows.h>
 
 #include "Logger.h"
 #include "Unknown.h"
+#include "Constants.h"
 
 
 template <typename SurfaceHolder>
@@ -13,24 +19,134 @@ class DirectDrawSurface7 : public Unknown<DirectDrawSurface7<SurfaceHolder>>
     IDirectDrawSurface7 * underlying;
     SurfaceHolder & surface_holder;
 
-    bool emulate_16_bits_per_pixel;
     bool is_primary;
+    std::chrono::system_clock::time_point last_render_time;
 
-    /// Lock() data.
-    void * memory = nullptr;
-    std::vector<unsigned char> buffer;
-    unsigned width;
-    unsigned height;
+    struct BufferKey
+    {
+        bool is_null;
+        RECT rect;
 
-	Logger log = Logger(Logger::Level::Trace, "DirectDrawSurface7");
+        BufferKey(LPRECT lpRect)
+        {
+            if (lpRect == nullptr)
+            {
+                is_null = true;
+            }
+            else
+            {
+                is_null = false;
+                rect = *lpRect;
+            }
+        }
+
+        bool operator ==(const BufferKey & rhs) const
+        {
+            if (is_null || rhs.is_null)
+            {
+                return is_null == rhs.is_null;
+            }
+            return std::tie(rect.top, rect.left, rect.bottom, rect.right)
+                == std::tie(rhs.rect.top, rhs.rect.left, rhs.rect.bottom, rhs.rect.right); 
+        }
+    };
+
+    struct BufferKeyHasher
+    {
+        std::size_t operator ()(const BufferKey & k) const
+        {
+            if (k.is_null)
+            {
+                return 0;
+            }
+            return (std::hash<LONG>()(k.rect.top) << 3) ^ (std::hash<LONG>()(k.rect.left) << 2)
+                ^ (std::hash<LONG>()(k.rect.bottom) << 1) ^ std::hash<LONG>()(k.rect.right);
+        }
+    };
+
+    class Buffer
+    {
+        inline unsigned short packHiColor(unsigned color)
+        {
+            unsigned char r = (color >> 16) & 0x1F;
+            unsigned char g = (color >> 8) & 0x3F;
+            unsigned char b = color & 0x1F;
+            return (r << (5+6)) | (g << 5) | b;
+        }
+
+        inline unsigned unpackHiColor(unsigned short color)
+        {
+            unsigned char r = (color & 0xF800) >> (5+6-3);
+            unsigned char g = (color & 0x07E0) >> (6-3);
+            unsigned char b = (color & 0x001F) << (3);
+            return (r << 16) | (g << 8) | b;
+        }
+
+    public:
+        void * underlying = nullptr;
+        std::vector<unsigned char> data;
+        unsigned width;
+        unsigned height;
+
+        Buffer()
+        {
+        }
+
+        Buffer(void * underlying, unsigned width, unsigned height):
+            width(width),
+            height(height)
+        {
+            data.resize(height*width*4);
+            if (Constants::InitializeBuffersWithZeros)
+            {
+                this->underlying = underlying;
+                std::fill(data.begin(), data.end(), 0);
+            }
+            else
+            {
+                load(underlying);
+            }
+        }
+
+        void load(void * underlying)
+        {
+            this->underlying = underlying;
+            for (unsigned y = 0; y < height; ++y)
+            {
+                unsigned * input = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(underlying) + y * width * 4);
+                unsigned short * output = reinterpret_cast<unsigned short *>(data.data() + y * width * 4);
+                for (unsigned x = 0; x < width; ++x)
+                {
+                    *output++ = packHiColor(*input++);                     
+                }
+            }
+        }
+
+        void render()
+        {
+            for (unsigned y = 0; y < height; ++y)
+            {
+                unsigned short * input = reinterpret_cast<unsigned short *>(data.data() + y * width * 4);
+                unsigned * output = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(underlying) + y * width * 4);
+                for (unsigned x = 0; x < width; ++x)
+                {
+                    *output++ = unpackHiColor(*input++);
+                }
+            }
+        }
+    };
+
+    std::unordered_map<BufferKey, Buffer, BufferKeyHasher> buffers;
+
+    Logger log = Logger(Logger::Level::Trace, "DirectDrawSurface7");
 
 public:
-    DirectDrawSurface7(SurfaceHolder & surface_holder, IDirectDrawSurface7 * underlying, bool emulate_16_bits_per_pixel, bool is_primary):
+    DirectDrawSurface7(SurfaceHolder & surface_holder, IDirectDrawSurface7 * underlying, bool is_primary):
         Unknown<DirectDrawSurface7>(underlying),
         underlying(underlying),
         surface_holder(surface_holder),
-        emulate_16_bits_per_pixel(emulate_16_bits_per_pixel),
-        is_primary(is_primary)
+        is_primary(is_primary),
+        last_render_time(std::chrono::system_clock::now())
     {
     }
 
@@ -181,7 +297,7 @@ public:
             << ", g=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwGBitMask << std::dec
             << ", b=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwBBitMask << std::dec
             << ", a=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwRGBAlphaBitMask << std::dec << ".";
-        if (emulate_16_bits_per_pixel)
+        if (Constants::Emulate16BitsPerPixel)
         {
             lpDDPixelFormat->dwRGBBitCount = 16;
             lpDDPixelFormat->dwRBitMask = 0xF800;           
@@ -210,16 +326,6 @@ public:
         return underlying->IsLost();
     }
 
-private:
-    inline unsigned short packHiColor(unsigned color)
-    {
-        unsigned char r = (color >> 16) & 0x1F;
-        unsigned char g = (color >> 8) & 0x3F;
-        unsigned char b = color & 0x1F;
-        return (r << (5+6)) | (g << 5) | b;
-    }
-
-public:
     virtual __stdcall HRESULT Lock(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSurfaceDesc, DWORD dwFlags, HANDLE hEvent)
     {
         HRESULT result = underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent);
@@ -230,26 +336,30 @@ public:
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc->dwFlags << std::dec << ".";
         if (result == DD_OK)
         {
-            /// Will hold one region per surface.
-            if (lpDDSurfaceDesc->dwFlags & DDSD_WIDTH && lpDDSurfaceDesc->dwFlags & DDSD_HEIGHT)
+            if (Constants::Emulate16BitsPerPixel && is_primary)
             {
-                memory = lpDDSurfaceDesc->lpSurface;
-                height = lpDDSurfaceDesc->dwHeight;
-                width = lpDDSurfaceDesc->dwWidth;
-                if (emulate_16_bits_per_pixel && is_primary)
+                if (lpDDSurfaceDesc->dwFlags & DDSD_WIDTH && lpDDSurfaceDesc->dwFlags & DDSD_HEIGHT)
                 {
-                    buffer.resize(height*width*4);
-                    for (unsigned y = 0; y < height; ++y)
+                    auto it = buffers.find(lpDestRect);
+                    if (it != buffers.end())
                     {
-                        unsigned * input = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(memory) + y * width * 4);
-                        unsigned short * output = reinterpret_cast<unsigned short *>(buffer.data() + y * width * 4);
-                        for (unsigned x = 0; x < width; ++x)
+                        if (Constants::ReadFromSurfaceMemoryOncePerBuffer)
                         {
-                            *output++ = packHiColor(*input++);                     
+                            it->second.underlying = lpDDSurfaceDesc->lpSurface;
                         }
+                        else
+                        {
+                            it->second.load(lpDDSurfaceDesc->lpSurface);
+                        }
+                        lpDDSurfaceDesc->lpSurface = it->second.data.data();
                     }
-
-                    lpDDSurfaceDesc->lpSurface = buffer.data();
+                    else
+                    {
+                        lpDDSurfaceDesc->lpSurface = buffers.emplace(std::piecewise_construct, std::forward_as_tuple(lpDestRect),
+                                std::forward_as_tuple(lpDDSurfaceDesc->lpSurface, lpDDSurfaceDesc->dwWidth, lpDDSurfaceDesc->dwHeight)
+                            ).first->second.data.data();
+                    }
+                    log(Logger::Level::Trace) << "Lock() finished.";
                 }
             }
         }
@@ -292,32 +402,56 @@ public:
         return underlying->SetPalette(arg);
     }
 
-private:
-    inline unsigned unpackHiColor(unsigned short color)
-    {
-        unsigned char r = (color & 0xF800) >> (5+6-3);
-        unsigned char g = (color & 0x07E0) >> (6-3);
-        unsigned char b = (color & 0x001F) << (3);
-        return (r << 16) | (g << 8) | b;
-    }
-
-public:
     virtual __stdcall HRESULT Unlock(LPRECT lpRect)
     {
-        if (emulate_16_bits_per_pixel && is_primary)
+        if (Constants::Emulate16BitsPerPixel && is_primary)
         {
-            for (unsigned y = 0; y < height; ++y)
+            auto it = buffers.find(lpRect);
+            /// If application is properly using DirectDraw, it will point to element.
+            /// Otherwise, we have to make some assumptions (see below).
+            if (it == buffers.end() && lpRect != nullptr)
             {
-                unsigned short * input = reinterpret_cast<unsigned short *>(buffer.data() + y * width * 4);
-                unsigned * output = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(memory) + y * width * 4);
-                for (unsigned x = 0; x < width; ++x)
+                /// Okay, let's check if we have entire buffer.
+                auto entire_it = buffers.find(nullptr);
+                if (lpRect->top == 0 && lpRect->left == 0 && entire_it != buffers.end()
+                    && (entire_it->second.width == lpRect->right && entire_it->second.height == lpRect->bottom
+                        || lpRect->right == 0 && lpRect->bottom == 0))
                 {
-                    *output++ = unpackHiColor(*input++);
+                    it = entire_it;    
                 }
+            }
+            if (Constants::AllowTrashInSurfaceUnlockRect && it == buffers.end() && buffers.size() == 1)
+            {
+                /// Okay, if we have only one buffer, use it.
+                it = buffers.begin();
+            }
+            if (it != buffers.end())
+            {
+                log(Logger::Level::Trace) << "Unlock() started.";
+
+                auto now = std::chrono::system_clock::now();
+                if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_render_time).count() > 20
+                    || !Constants::AllowToUseUnlockedSurfaceMemory || !it->first.is_null)
+                {
+                    it->second.render();
+                    last_render_time = now;
+                }
+
+                if (!Constants::AllowToUseUnlockedSurfaceMemory || !it->first.is_null)
+                {
+                    /// Won't erase entire buffer because an application may write to it before next Lock(). //_-
+                    buffers.erase(it);
+                }
+            }
+            else
+            {
+                log(Logger::Level::Error) << "Unlocking unknown rect.";
             }
         }
         log(Logger::Level::Trace) << "Unlock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
-            << ", rect=" << std::hex << std::setfill('0') << std::setw(8) << lpRect << std::dec << ").";
+            << ", rect=" << (lpRect == nullptr ? std::string("NULL")
+                : std::string("{") + std::to_string(lpRect->left) + ", " + std::to_string(lpRect->top) + ", "
+                + std::to_string(lpRect->right) + ", " + std::to_string(lpRect->bottom) + "}") << ").";
         return underlying->Unlock(lpRect);
     }
 

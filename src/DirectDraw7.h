@@ -7,6 +7,7 @@
 
 #include "Unknown.h"
 #include "Logger.h"
+#include "Constants.h"
 #include "DirectDrawSurface7.h"
 
 
@@ -15,12 +16,9 @@ class DirectDraw7 : public Unknown<DirectDraw7>
     IDirectDraw7 * underlying;
     std::unordered_map<LPDIRECTDRAWSURFACE7, DirectDrawSurface7<DirectDraw7> *> wrapped_surfaces;
     std::unordered_map<DirectDrawSurface7<DirectDraw7> *, LPDIRECTDRAWSURFACE7> original_surfaces;
-    /// TODO: Clear them on IDirectDrawSurface7::Release().
+    /// TODO. Clear them on IDirectDrawSurface7::Release().
 
-    bool disable_exclusive_cooperative_level = true;
-    bool emulate_16_bits_per_pixel = true;
-
-	Logger log = Logger(Logger::Level::Trace, "DirectDraw7");
+    Logger log = Logger(Logger::Level::Trace, "DirectDraw7");
 
 public:
     DirectDraw7(IDirectDraw7 * underlying):
@@ -44,7 +42,7 @@ public:
             }
             else
             {
-                DirectDrawSurface7<DirectDraw7> * surface = new DirectDrawSurface7<DirectDraw7>(*this, lpDDSurface, emulate_16_bits_per_pixel, is_primary);
+                DirectDrawSurface7<DirectDraw7> * surface = new DirectDrawSurface7<DirectDraw7>(*this, lpDDSurface, is_primary);
                 /// TODO: Wrapper surfaces are not being deleted sometimes, when last Release() is called in
                 /// DirectX code. Some DirectX calls require special handling to fix that.
                 /// I don't call AddRef() on original interfaces when it is needed in some cases.
@@ -215,7 +213,7 @@ public:
         log() << "SetCooperativeLevel(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", hwnd=" << std::hex << std::setfill('0') << std::setw(8) << hWnd << std::dec
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ").";
-        if (disable_exclusive_cooperative_level)
+        if (Constants::DisableExclusiveCooperativeLevel)
         {
             if (dwFlags & DDSCL_EXCLUSIVE)
             {
@@ -230,7 +228,7 @@ public:
         log() << "SetDisplayMode(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", width=" << dwWidth << ", height=" << dwHeight << ", bpp=" << dwBPP << ", refreshRate=" << dwRefreshRate
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ").";
-        if (emulate_16_bits_per_pixel)
+        if (Constants::Emulate16BitsPerPixel)
         {
             if (dwBPP == 16)
             {

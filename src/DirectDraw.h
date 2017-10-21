@@ -12,8 +12,8 @@
 class DirectDraw
 {
     static HMODULE hdll;
-    static HRESULT WINAPI (__attribute__((__stdcall__)) * OriginalDirectDrawCreate)(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter);
-    static HRESULT WINAPI (__attribute__((__stdcall__)) * OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
+    static HRESULT WINAPI __stdcall (* OriginalDirectDrawCreate)(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter);
+    static HRESULT WINAPI __stdcall (* OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
 
     static std::string getSystemDirectory()
     {
@@ -70,5 +70,5 @@ public:
 };
 
 HMODULE DirectDraw::hdll;
-HRESULT WINAPI (__attribute__((__stdcall__)) * DirectDraw::OriginalDirectDrawCreate)(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter);
-HRESULT WINAPI (__attribute__((__stdcall__)) * DirectDraw::OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
+HRESULT WINAPI __stdcall (* DirectDraw::OriginalDirectDrawCreate)(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter);
+HRESULT WINAPI __stdcall (* DirectDraw::OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);

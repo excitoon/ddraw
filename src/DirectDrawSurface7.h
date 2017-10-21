@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <windows.h>
 
 #include "Logger.h"
@@ -17,6 +18,7 @@ class DirectDrawSurface7 : public Unknown<DirectDrawSurface7<SurfaceHolder>>
 
     /// Lock() data.
     void * memory = nullptr;
+    std::vector<unsigned char> buffer;
     unsigned width;
     unsigned height;
 
@@ -208,6 +210,16 @@ public:
         return underlying->IsLost();
     }
 
+private:
+    inline unsigned short packHiColor(unsigned color)
+    {
+        unsigned char r = (color >> 16) & 0x1F;
+        unsigned char g = (color >> 8) & 0x3F;
+        unsigned char b = color & 0x1F;
+        return (r << (5+6)) | (g << 5) | b;
+    }
+
+public:
     virtual __stdcall HRESULT Lock(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSurfaceDesc, DWORD dwFlags, HANDLE hEvent)
     {
         HRESULT result = underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent);
@@ -224,6 +236,21 @@ public:
                 memory = lpDDSurfaceDesc->lpSurface;
                 height = lpDDSurfaceDesc->dwHeight;
                 width = lpDDSurfaceDesc->dwWidth;
+                if (emulate_16_bits_per_pixel && is_primary)
+                {
+                    buffer.resize(height*width*4);
+                    for (unsigned y = 0; y < height; ++y)
+                    {
+                        unsigned * input = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(memory) + y * width * 4);
+                        unsigned short * output = reinterpret_cast<unsigned short *>(buffer.data() + y * width * 4);
+                        for (unsigned x = 0; x < width; ++x)
+                        {
+                            *output++ = packHiColor(*input++);                     
+                        }
+                    }
+
+                    lpDDSurfaceDesc->lpSurface = buffer.data();
+                }
             }
         }
         return result;
@@ -277,20 +304,17 @@ private:
 public:
     virtual __stdcall HRESULT Unlock(LPRECT lpRect)
     {
-        if (emulate_16_bits_per_pixel && is_primary && memory != nullptr)
+        if (emulate_16_bits_per_pixel && is_primary)
         {
-            /// FIXME. Slow reverse copy.
             for (unsigned y = 0; y < height; ++y)
             {
-                unsigned char * row = reinterpret_cast<unsigned char *>(memory) + y * width * 4;
-                unsigned short * input = reinterpret_cast<unsigned short *>(row + width * 2 - 2);
-                unsigned * output = reinterpret_cast<unsigned *>(row + width * 4 - 4);
+                unsigned short * input = reinterpret_cast<unsigned short *>(buffer.data() + y * width * 4);
+                unsigned * output = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(memory) + y * width * 4);
                 for (unsigned x = 0; x < width; ++x)
                 {
-                    *output-- = unpackHiColor(*input--);                     
+                    *output++ = unpackHiColor(*input++);
                 }
             }
-            memory = nullptr;    
         }
         log(Logger::Level::Trace) << "Unlock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", rect=" << std::hex << std::setfill('0') << std::setw(8) << lpRect << std::dec << ").";

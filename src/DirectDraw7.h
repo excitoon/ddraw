@@ -97,14 +97,15 @@ public:
 
     virtual __stdcall HRESULT CreateSurface(LPDDSURFACEDESC2 lpDDSurfaceDesc2, LPDIRECTDRAWSURFACE7 FAR * lplpDDSurface, IUnknown FAR * pUnkOuter)
     {
-        log() << "CreateSurface(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
-            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->dwFlags << std::dec
-            << ", width=" << lpDDSurfaceDesc2->dwWidth << ", height=" << lpDDSurfaceDesc2->dwHeight
-            << ", caps=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->ddsCaps.dwCaps << std::dec << ").";
         LPDIRECTDRAWSURFACE7 lpDDSurface = nullptr;
         bool is_primary_surface = lpDDSurfaceDesc2->dwFlags & DDSD_CAPS && lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE;
         HRESULT result = underlying->CreateSurface(lpDDSurfaceDesc2, &lpDDSurface, pUnkOuter);
         *lplpDDSurface = getWrappedSurface(lpDDSurface, is_primary_surface);
+        log() << "CreateSurface(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
+            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->dwFlags << std::dec
+            << ", width=" << lpDDSurfaceDesc2->dwWidth << ", height=" << lpDDSurfaceDesc2->dwHeight
+            << ", caps=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->ddsCaps.dwCaps << std::dec << ")"
+            << " -> " << std::hex << std::setfill('0') << std::setw(8) << *lplpDDSurface << std::dec << ".";
         return result;
     }
 

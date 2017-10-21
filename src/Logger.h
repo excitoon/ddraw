@@ -4,6 +4,7 @@
 #include <fstream>
 #include <ctime>
 #include <chrono>
+#include <thread>
 
 
 class Logger
@@ -76,7 +77,8 @@ public:
         auto millis = std::chrono::duration_cast<std::chrono::microseconds>(duration).count() % 1000000;
         std::time_t now = std::chrono::system_clock::to_time_t(clock);
         std::tm tm_now = *std::localtime(&now);
-        log << std::put_time(&tm_now, "%Y-%m-%d %H:%M:%S") << "." << std::setw(6) << std::setfill('0') << millis << " <";
+        log << std::put_time(&tm_now, "%Y-%m-%d %H:%M:%S") << "." << std::setw(6) << std::setfill('0') << millis << " ";
+        log << "[ " << std::this_thread::get_id() << " ] <";
         switch (level)
         {
             case Level::Fatal: log << "Fatal"; break;

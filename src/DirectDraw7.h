@@ -9,10 +9,12 @@
 #include "Logger.h"
 #include "Constants.h"
 #include "DirectDrawSurface7.h"
+#include "Scheduler.h"
 
 
 class DirectDraw7 : public Unknown<DirectDraw7>
 {
+    Scheduler & scheduler;
     IDirectDraw7 * underlying;
     std::unordered_map<LPDIRECTDRAWSURFACE7, DirectDrawSurface7<DirectDraw7> *> wrapped_surfaces;
     std::unordered_map<DirectDrawSurface7<DirectDraw7> *, LPDIRECTDRAWSURFACE7> original_surfaces;
@@ -21,8 +23,9 @@ class DirectDraw7 : public Unknown<DirectDraw7>
     Logger log = Logger(Logger::Level::Trace, "DirectDraw7");
 
 public:
-    DirectDraw7(IDirectDraw7 * underlying):
-        Unknown<DirectDraw7>(underlying),
+    DirectDraw7(Scheduler & scheduler, IDirectDraw7 * underlying):
+        Unknown<DirectDraw7>(scheduler, underlying),
+        scheduler(scheduler),
         underlying(underlying)
     {
     }
@@ -42,8 +45,8 @@ public:
             }
             else
             {
-                DirectDrawSurface7<DirectDraw7> * surface = new DirectDrawSurface7<DirectDraw7>(*this, lpDDSurface, is_primary);
-                /// TODO: Wrapper surfaces are not being deleted sometimes, when last Release() is called in
+                DirectDrawSurface7<DirectDraw7> * surface = new DirectDrawSurface7<DirectDraw7>(scheduler, *this, lpDDSurface, is_primary);
+                /// TODO. Wrapper surfaces are not being deleted sometimes, when last Release() is called in
                 /// DirectX code. Some DirectX calls require special handling to fix that.
                 /// I don't call AddRef() on original interfaces when it is needed in some cases.
 
@@ -80,26 +83,26 @@ public:
     virtual __stdcall HRESULT Compact()
     {
         log() << "Compact.";
-        return underlying->Compact();
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->Compact(); });
     }
 
     virtual __stdcall HRESULT CreateClipper(DWORD arg1, LPDIRECTDRAWCLIPPER FAR * arg2, IUnknown FAR * arg3)
     {
         log() << "CreateClipper.";
-        return underlying->CreateClipper(arg1, arg2, arg3);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->CreateClipper(arg1, arg2, arg3); });
     }
 
     virtual __stdcall HRESULT CreatePalette(DWORD arg1, LPPALETTEENTRY arg2, LPDIRECTDRAWPALETTE FAR * arg3, IUnknown FAR * arg4)
     {
         log() << "CreatePalette.";
-        return underlying->CreatePalette(arg1, arg2, arg3, arg4);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->CreatePalette(arg1, arg2, arg3, arg4); });
     }
 
     virtual __stdcall HRESULT CreateSurface(LPDDSURFACEDESC2 lpDDSurfaceDesc2, LPDIRECTDRAWSURFACE7 FAR * lplpDDSurface, IUnknown FAR * pUnkOuter)
     {
         LPDIRECTDRAWSURFACE7 lpDDSurface = nullptr;
         bool is_primary_surface = lpDDSurfaceDesc2->dwFlags & DDSD_CAPS && lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE;
-        HRESULT result = underlying->CreateSurface(lpDDSurfaceDesc2, &lpDDSurface, pUnkOuter);
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->CreateSurface(lpDDSurfaceDesc2, &lpDDSurface, pUnkOuter); });
         *lplpDDSurface = getWrappedSurface(lpDDSurface, is_primary_surface);
         log() << "CreateSurface(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->dwFlags << std::dec
@@ -113,7 +116,7 @@ public:
     {
         log() << "DuplicateSurface.";
         LPDIRECTDRAWSURFACE7 lpDupDDSurface = nullptr;
-        HRESULT result = underlying->DuplicateSurface(getOriginalSurface(lpDDSurface), &lpDupDDSurface);
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->DuplicateSurface(getOriginalSurface(lpDDSurface), &lpDupDDSurface); });
         *lplpDupDDSurface = getWrappedSurface(lpDupDDSurface);
         return result;
     }
@@ -121,7 +124,7 @@ public:
     virtual __stdcall HRESULT EnumDisplayModes(DWORD arg1, LPDDSURFACEDESC2 arg2, LPVOID arg3, LPDDENUMMODESCALLBACK2 arg4)
     {
         log() << "EnumDisplayModes.";
-        return underlying->EnumDisplayModes(arg1, arg2, arg3, arg4);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->EnumDisplayModes(arg1, arg2, arg3, arg4); });
     }
 
     struct WrapperContext
@@ -143,38 +146,38 @@ public:
     {
         log() << "EnumSurfaces.";
         WrapperContext wrapper_context{ lpContext, lpEnumSurfacesCallback, dwFlags, *this };
-        return underlying->EnumSurfaces(dwFlags, lpDDSD2, static_cast<LPVOID>(&wrapper_context), EnumSurfacesCallback7);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->EnumSurfaces(dwFlags, lpDDSD2, static_cast<LPVOID>(&wrapper_context), EnumSurfacesCallback7); });
     }
 
     virtual __stdcall HRESULT FlipToGDISurface()
     {
         log() << "FlipToGDISurface.";
-        return underlying->FlipToGDISurface();
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->FlipToGDISurface(); });
     }
 
     virtual __stdcall HRESULT GetCaps(LPDDCAPS arg1, LPDDCAPS arg2)
     {
         log() << "GetCaps.";
-        return underlying->GetCaps(arg1, arg2);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetCaps(arg1, arg2); });
     }
 
     virtual __stdcall HRESULT GetDisplayMode(LPDDSURFACEDESC2 arg)
     {
         log() << "GetDisplayMode.";
-        return underlying->GetDisplayMode(arg);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetDisplayMode(arg); });
     }
 
     virtual __stdcall HRESULT GetFourCCCodes(LPDWORD arg1, LPDWORD arg2)
     {
         log() << "GetFourCCCodes.";
-        return underlying->GetFourCCCodes(arg1, arg2);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetFourCCCodes(arg1, arg2); });
     }
 
     virtual __stdcall HRESULT GetGDISurface(LPDIRECTDRAWSURFACE7 FAR * lplpGDIDDSSurface)
     {
         log() << "GetGDISurface.";
         LPDIRECTDRAWSURFACE7 lpGDIDDSSurface = nullptr;
-        HRESULT result = underlying->GetGDISurface(&lpGDIDDSSurface);
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->GetGDISurface(&lpGDIDDSSurface); });
         *lplpGDIDDSSurface = getWrappedSurface(lpGDIDDSSurface);
         return result;
     }
@@ -182,31 +185,31 @@ public:
     virtual __stdcall HRESULT GetMonitorFrequency(LPDWORD arg)
     {
         log() << "GetMonitorFrequency.";
-        return underlying->GetMonitorFrequency(arg);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetMonitorFrequency(arg); });
     }
 
     virtual __stdcall HRESULT GetScanLine(LPDWORD arg)
     {
         log() << "GetScanLine.";
-        return underlying->GetScanLine(arg);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetScanLine(arg); });
     }
 
     virtual __stdcall HRESULT GetVerticalBlankStatus(LPBOOL arg)
     {
         log() << "GetVerticalBlankStatus.";
-        return underlying->GetVerticalBlankStatus(arg);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetVerticalBlankStatus(arg); });
     }
 
     virtual __stdcall HRESULT Initialize(GUID FAR * arg)
     {
         log() << "Initialize.";
-        return underlying->Initialize(arg);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->Initialize(arg); });
     }
 
     virtual __stdcall HRESULT RestoreDisplayMode()
     {
         log() << "RestoreDisplayMode.";
-        return underlying->RestoreDisplayMode();
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->RestoreDisplayMode(); });
     }
 
     virtual __stdcall HRESULT SetCooperativeLevel(HWND hWnd, DWORD dwFlags)
@@ -221,7 +224,7 @@ public:
                 dwFlags = (dwFlags & ~DDSCL_EXCLUSIVE) | DDSCL_NORMAL;
             }
         }
-        return underlying->SetCooperativeLevel(hWnd, dwFlags);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetCooperativeLevel(hWnd, dwFlags); });
     }
 
     virtual __stdcall HRESULT SetDisplayMode(DWORD dwWidth, DWORD dwHeight, DWORD dwBPP, DWORD dwRefreshRate, DWORD dwFlags)
@@ -236,26 +239,26 @@ public:
                 dwBPP = 32;
             }
         }
-        return underlying->SetDisplayMode(dwWidth, dwHeight, dwBPP, dwRefreshRate, dwFlags);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetDisplayMode(dwWidth, dwHeight, dwBPP, dwRefreshRate, dwFlags); });
     }
 
     virtual __stdcall HRESULT WaitForVerticalBlank(DWORD arg1, HANDLE arg2)
     {
         log() << "WaitForVerticalBlank.";
-        return underlying->WaitForVerticalBlank(arg1, arg2);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->WaitForVerticalBlank(arg1, arg2); });
     }
 
     virtual __stdcall HRESULT GetAvailableVidMem(LPDDSCAPS2 arg1, LPDWORD arg2, LPDWORD arg3)
     {
         log() << "GetAvailableVidMem.";
-        return underlying->GetAvailableVidMem(arg1, arg2, arg3);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetAvailableVidMem(arg1, arg2, arg3); });
     }
 
     virtual __stdcall HRESULT GetSurfaceFromDC(HDC hdc, LPDIRECTDRAWSURFACE7 * lplpDDS)
     {
         log() << "GetSurfaceFromDC.";
         LPDIRECTDRAWSURFACE7 lpDDS = nullptr;
-        HRESULT result = underlying->GetSurfaceFromDC(hdc, &lpDDS);
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->GetSurfaceFromDC(hdc, &lpDDS); });
         *lplpDDS = getWrappedSurface(lpDDS);
         return result;
     }
@@ -263,30 +266,30 @@ public:
     virtual __stdcall HRESULT RestoreAllSurfaces()
     {
         log() << "RestoreAllSurfaces.";
-        return underlying->RestoreAllSurfaces();
+        return scheduler.makeTask<HRESULT>([&]() { return  underlying->RestoreAllSurfaces(); });
     }
 
     virtual __stdcall HRESULT TestCooperativeLevel()
     {
         log() << "TestCooperativeLevel.";
-        return underlying->TestCooperativeLevel();
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->TestCooperativeLevel(); });
     }
 
     virtual __stdcall HRESULT GetDeviceIdentifier(LPDDDEVICEIDENTIFIER2 arg1, DWORD arg2)
     {
         log() << "GetDeviceIdentifier.";
-        return underlying->GetDeviceIdentifier(arg1, arg2);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetDeviceIdentifier(arg1, arg2); });
     }
 
     virtual __stdcall HRESULT StartModeTest(LPSIZE arg1, DWORD arg2, DWORD arg3)
     {
         log() << "StartModeTest.";
-        return underlying->StartModeTest(arg1, arg2, arg3);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->StartModeTest(arg1, arg2, arg3); });
     }
 
     virtual __stdcall HRESULT EvaluateMode(DWORD arg1, DWORD * arg2)
     {
         log() << "EvaluateMode.";
-        return underlying->EvaluateMode(arg1, arg2);
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->EvaluateMode(arg1, arg2); });
     }
 };

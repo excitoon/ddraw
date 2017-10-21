@@ -7,6 +7,8 @@
 #include <ddraw.h>
 
 #include "DirectDraw7.h"
+#include "Scheduler.h"
+#include "Logger.h"
 
 
 class DirectDraw
@@ -14,6 +16,9 @@ class DirectDraw
     static HMODULE hdll;
     static HRESULT WINAPI __stdcall (* OriginalDirectDrawCreate)(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter);
     static HRESULT WINAPI __stdcall (* OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
+    static Scheduler scheduler;
+
+    static Logger log;
 
     static std::string getSystemDirectory()
     {
@@ -50,11 +55,12 @@ public:
 
     static HRESULT WINAPI DirectDrawCreate(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter)
     {
+        log() << "DirectDrawCreate.";
         LPDIRECTDRAW lpDD = nullptr;
-        HRESULT result = OriginalDirectDrawCreate(lpGUID, &lpDD, pUnkOuter);
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return OriginalDirectDrawCreate(lpGUID, &lpDD, pUnkOuter); });
         if (lpDD != nullptr)
         {
-            *lplpDD = reinterpret_cast<LPDIRECTDRAW>(new DirectDraw7(reinterpret_cast<IDirectDraw7 *>(lpDD)));
+            *lplpDD = reinterpret_cast<LPDIRECTDRAW>(new DirectDraw7(scheduler, reinterpret_cast<IDirectDraw7 *>(lpDD)));
         }
         else
         {
@@ -65,10 +71,13 @@ public:
 
     static HRESULT WINAPI DirectDrawEnumerate(LPDDENUMCALLBACK lpCallback, LPVOID lpContext)
     {
-        return OriginalDirectDrawEnumerate(lpCallback, lpContext);
+        log() << "DirectDrawEnumerate.";
+        return scheduler.makeTask<HRESULT>([&]() { return OriginalDirectDrawEnumerate(lpCallback, lpContext); });
     }
 };
 
 HMODULE DirectDraw::hdll;
 HRESULT WINAPI __stdcall (* DirectDraw::OriginalDirectDrawCreate)(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter);
 HRESULT WINAPI __stdcall (* DirectDraw::OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
+Scheduler DirectDraw::scheduler;
+Logger DirectDraw::log(Logger::Level::Trace, "DirectDraw");

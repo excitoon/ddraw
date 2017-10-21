@@ -12,16 +12,23 @@ class DirectDrawSurface7 : public Unknown<DirectDrawSurface7<SurfaceHolder>>
     IDirectDrawSurface7 * underlying;
     SurfaceHolder & surface_holder;
 
-    bool emulate16BitsPerPixel;
+    bool emulate_16_bits_per_pixel;
+    bool is_primary;
+
+    /// Lock() data.
+    void * memory = nullptr;
+    unsigned width;
+    unsigned height;
 
 	Logger log = Logger(Logger::Level::Trace, "DirectDrawSurface7");
 
 public:
-    DirectDrawSurface7(SurfaceHolder & surface_holder, IDirectDrawSurface7 * underlying, bool emulate16BitsPerPixel):
+    DirectDrawSurface7(SurfaceHolder & surface_holder, IDirectDrawSurface7 * underlying, bool emulate_16_bits_per_pixel, bool is_primary):
         Unknown<DirectDrawSurface7>(underlying),
         underlying(underlying),
         surface_holder(surface_holder),
-        emulate16BitsPerPixel(emulate16BitsPerPixel)
+        emulate_16_bits_per_pixel(emulate_16_bits_per_pixel),
+        is_primary(is_primary)
     {
     }
 
@@ -165,14 +172,14 @@ public:
     virtual __stdcall HRESULT GetPixelFormat(LPDDPIXELFORMAT lpDDPixelFormat)
     {
         HRESULT result = underlying->GetPixelFormat(lpDDPixelFormat);
-        log() << "GetPixelFormat(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec << ") -> "
-            << "flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwFlags << std::dec
+        log() << "GetPixelFormat(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec << ")"
+            << " -> flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwFlags << std::dec
             << ", bpp=" << lpDDPixelFormat->dwRGBBitCount
             << ", r=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwRBitMask << std::dec
             << ", g=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwGBitMask << std::dec
             << ", b=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwBBitMask << std::dec
             << ", a=" << std::hex << std::setfill('0') << std::setw(8) << lpDDPixelFormat->dwRGBAlphaBitMask << std::dec << ".";
-        if (emulate16BitsPerPixel)
+        if (emulate_16_bits_per_pixel)
         {
             lpDDPixelFormat->dwRGBBitCount = 16;
             lpDDPixelFormat->dwRBitMask = 0xF800;           
@@ -203,10 +210,23 @@ public:
 
     virtual __stdcall HRESULT Lock(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSurfaceDesc, DWORD dwFlags, HANDLE hEvent)
     {
+        HRESULT result = underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent);
         log(Logger::Level::Trace) << "Lock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", rect=" << std::hex << std::setfill('0') << std::setw(8) << lpDestRect << std::dec
-            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ").";
-        return underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent);
+            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ")"
+            << " -> width=" << lpDDSurfaceDesc->dwWidth << ", height=" << lpDDSurfaceDesc->dwHeight
+            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc->dwFlags << std::dec << ".";
+        if (result == DD_OK)
+        {
+            /// Will hold one region per surface.
+            if (lpDDSurfaceDesc->dwFlags & DDSD_WIDTH && lpDDSurfaceDesc->dwFlags & DDSD_HEIGHT)
+            {
+                memory = lpDDSurfaceDesc->lpSurface;
+                height = lpDDSurfaceDesc->dwHeight;
+                width = lpDDSurfaceDesc->dwWidth;
+            }
+        }
+        return result;
     }
 
     virtual __stdcall HRESULT ReleaseDC(HDC arg)
@@ -245,8 +265,33 @@ public:
         return underlying->SetPalette(arg);
     }
 
+private:
+    inline unsigned unpackHiColor(unsigned short color)
+    {
+        unsigned char r = (color & 0xF800) >> (5+6-3);
+        unsigned char g = (color & 0x07E0) >> (6-3);
+        unsigned char b = (color & 0x001F) << (3);
+        return (r << 16) | (g << 8) | b;
+    }
+
+public:
     virtual __stdcall HRESULT Unlock(LPRECT lpRect)
     {
+        if (emulate_16_bits_per_pixel && is_primary && memory != nullptr)
+        {
+            /// FIXME. Slow reverse copy.
+            for (unsigned y = 0; y < height; ++y)
+            {
+                unsigned char * row = reinterpret_cast<unsigned char *>(memory) + y * width * 4;
+                unsigned short * input = reinterpret_cast<unsigned short *>(row + width * 2 - 2);
+                unsigned * output = reinterpret_cast<unsigned *>(row + width * 4 - 4);
+                for (unsigned x = 0; x < width; ++x)
+                {
+                    *output-- = unpackHiColor(*input--);                     
+                }
+            }
+            memory = nullptr;    
+        }
         log(Logger::Level::Trace) << "Unlock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", rect=" << std::hex << std::setfill('0') << std::setw(8) << lpRect << std::dec << ").";
         return underlying->Unlock(lpRect);

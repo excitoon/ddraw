@@ -17,8 +17,8 @@ class DirectDraw7 : public Unknown<DirectDraw7>
     std::unordered_map<DirectDrawSurface7<DirectDraw7> *, LPDIRECTDRAWSURFACE7> original_surfaces;
     /// TODO: Clear them on IDirectDrawSurface7::Release().
 
-    bool disableExclusiveCooperativeLevel = true;
-    bool emulate16BitsPerPixel = true;
+    bool disable_exclusive_cooperative_level = true;
+    bool emulate_16_bits_per_pixel = true;
 
 	Logger log = Logger(Logger::Level::Trace, "DirectDraw7");
 
@@ -33,7 +33,7 @@ public:
     {
     }
 
-    LPDIRECTDRAWSURFACE7 getWrappedSurface(LPDIRECTDRAWSURFACE7 lpDDSurface)
+    LPDIRECTDRAWSURFACE7 getWrappedSurface(LPDIRECTDRAWSURFACE7 lpDDSurface, bool is_primary = false)
     {
         if (lpDDSurface != nullptr)
         {
@@ -44,7 +44,7 @@ public:
             }
             else
             {
-                DirectDrawSurface7<DirectDraw7> * surface = new DirectDrawSurface7<DirectDraw7>(*this, lpDDSurface, emulate16BitsPerPixel);
+                DirectDrawSurface7<DirectDraw7> * surface = new DirectDrawSurface7<DirectDraw7>(*this, lpDDSurface, emulate_16_bits_per_pixel, is_primary);
                 /// TODO: Wrapper surfaces are not being deleted sometimes, when last Release() is called in
                 /// DirectX code. Some DirectX calls require special handling to fix that.
                 /// I don't call AddRef() on original interfaces when it is needed in some cases.
@@ -99,10 +99,14 @@ public:
 
     virtual __stdcall HRESULT CreateSurface(LPDDSURFACEDESC2 lpDDSurfaceDesc2, LPDIRECTDRAWSURFACE7 FAR * lplpDDSurface, IUnknown FAR * pUnkOuter)
     {
-        log() << "CreateSurface.";
+        log() << "CreateSurface(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
+            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->dwFlags << std::dec
+            << ", width=" << lpDDSurfaceDesc2->dwWidth << ", height=" << lpDDSurfaceDesc2->dwHeight
+            << ", caps=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->ddsCaps.dwCaps << std::dec << ").";
         LPDIRECTDRAWSURFACE7 lpDDSurface = nullptr;
+        bool is_primary_surface = lpDDSurfaceDesc2->dwFlags & DDSD_CAPS && lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE;
         HRESULT result = underlying->CreateSurface(lpDDSurfaceDesc2, &lpDDSurface, pUnkOuter);
-        *lplpDDSurface = getWrappedSurface(lpDDSurface);
+        *lplpDDSurface = getWrappedSurface(lpDDSurface, is_primary_surface);
         return result;
     }
 
@@ -211,7 +215,7 @@ public:
         log() << "SetCooperativeLevel(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", hwnd=" << std::hex << std::setfill('0') << std::setw(8) << hWnd << std::dec
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ").";
-        if (disableExclusiveCooperativeLevel)
+        if (disable_exclusive_cooperative_level)
         {
             if (dwFlags & DDSCL_EXCLUSIVE)
             {
@@ -226,7 +230,7 @@ public:
         log() << "SetDisplayMode(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", width=" << dwWidth << ", height=" << dwHeight << ", bpp=" << dwBPP << ", refreshRate=" << dwRefreshRate
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ").";
-        if (emulate16BitsPerPixel)
+        if (emulate_16_bits_per_pixel)
         {
             if (dwBPP == 16)
             {

@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "Logger.h"
+#include "Constants.h"
 
 
 /// Unfortunately, DirectDraw works with multiple threads poorly even with DDSCL_MULTITHREADED.
@@ -88,34 +89,48 @@ class Scheduler
 public:
     Scheduler()
     {
-        worker = std::thread([this]()
+        if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
-            while (!shutting_down)
+            worker = std::thread([this]()
             {
-                if (!thread_data[0].work() && !thread_data[1].work())
+                while (!shutting_down)
                 {
-                    std::this_thread::yield();
+                    if (!thread_data[0].work() && !thread_data[1].work())
+                    {
+                        std::this_thread::yield();
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     ~Scheduler()
     {
-        shutting_down = true;
+        if (Constants::EnablePrimarySurfaceBackgroundBuffering)
+        {
+            shutting_down = true;
+            worker.join();
+        }
     }
 
     /// TODO. Use std::invoke_result_t<SpecificTask> in 2018.
     template <typename ResultType, typename SpecificTask>
     ResultType makeTask(SpecificTask && task)
     {
-        ThreadData & data = thread_data[getIndex()];
         ResultType result;
-        std::atomic<bool> done = { false };
-        data.post([&]() { result = task(); done = true; });
-        while (!done)
+        if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
-            std::this_thread::yield();
+            ThreadData & data = thread_data[getIndex()];
+            std::atomic<bool> done = { false };
+            data.post([&]() { result = task(); done = true; });
+            while (!done)
+            {
+                std::this_thread::yield();
+            }
+        }
+        else
+        {
+            result = task();
         }
         return result;
     }

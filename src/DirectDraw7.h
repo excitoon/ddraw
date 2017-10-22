@@ -103,6 +103,7 @@ public:
         LPDIRECTDRAWSURFACE7 lpDDSurface = nullptr;
         bool is_primary_surface = lpDDSurfaceDesc2->dwFlags & DDSD_CAPS && lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE;
         HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->CreateSurface(lpDDSurfaceDesc2, &lpDDSurface, pUnkOuter); });
+        /// TODO. Save description to surface.
         *lplpDDSurface = getWrappedSurface(lpDDSurface, is_primary_surface);
         log() << "CreateSurface(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << lpDDSurfaceDesc2->dwFlags << std::dec

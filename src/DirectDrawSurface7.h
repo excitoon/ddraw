@@ -209,7 +209,7 @@ public:
 
     virtual __stdcall HRESULT IsLost()
     {
-        log() << "IsLost.";
+        log(Logger::Level::Trace) << "IsLost.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->IsLost(); });
     }
 
@@ -219,7 +219,7 @@ public:
         HRESULT result;
         if (Constants::Emulate16BitsPerPixel && is_primary)
         {
-            if (Constants::AllowToUseUnlockedSurfaceMemory && lpDestRect == nullptr)
+            if (Constants::EnablePrimarySurfaceBackgroundBuffering && lpDestRect == nullptr)
             {
                 /// In background rendering we only do first Lock() to obtain data.
                 /// At this point there is no rendering task in action.
@@ -275,6 +275,14 @@ public:
         else
         {
             result = scheduler.makeTask<HRESULT>([&]() { return underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent); });
+            if (result == DD_OK && Constants::Emulate16BitsPerPixel)
+            {
+                lpDDSurfaceDesc->ddpfPixelFormat.dwRGBBitCount = 16;
+                lpDDSurfaceDesc->ddpfPixelFormat.dwRBitMask = 0xF800;
+                lpDDSurfaceDesc->ddpfPixelFormat.dwGBitMask = 0x07E0; /// 5:6:5
+                lpDDSurfaceDesc->ddpfPixelFormat.dwBBitMask = 0x001F;
+                lpDDSurfaceDesc->ddpfPixelFormat.dwRGBAlphaBitMask = 0;
+            }
         }
         log(Logger::Level::Trace) << "Lock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", rect=" << std::hex << std::setfill('0') << std::setw(8) << lpDestRect << std::dec
@@ -351,7 +359,7 @@ public:
             }
             if (it != buffers.end())
             {
-                if (Constants::AllowToUseUnlockedSurfaceMemory && it->first.is_null)
+                if (Constants::EnablePrimarySurfaceBackgroundBuffering && it->first.is_null)
                 {
                     it->second.renderInBackground();
                     result = DD_OK;

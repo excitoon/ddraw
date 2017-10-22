@@ -94,6 +94,7 @@ public:
     unsigned width;
     unsigned client_width;
     unsigned height;
+    unsigned client_height;
 
     Buffer()
     {
@@ -107,9 +108,10 @@ public:
         lock_flags(lock_flags),
         width(lpDDSurfaceDesc->dwWidth),
         client_width(std::min(width, Constants::MaxPrimarySurfaceBufferWidth)),
-        height(lpDDSurfaceDesc->dwHeight)
+        height(lpDDSurfaceDesc->dwHeight),
+        client_height(std::min(height, Constants::MaxPrimarySurfaceBufferHeight))
     {
-        data.resize(client_width * height * 2);
+        data.resize(client_width * client_height * 2);
         if (Constants::InitializeBuffersWithZeros)
         {
             this->underlying = underlying;
@@ -130,12 +132,13 @@ public:
     void load(void * underlying)
     {
         this->underlying = underlying;
-        for (unsigned y = 0; y < height; ++y)
+        for (unsigned y = 0; y < client_height; ++y)
         {
             unsigned * input = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(underlying) + y * width * 4);
             unsigned short * output = reinterpret_cast<unsigned short *>(data.data() + y * client_width * 2);
             for (unsigned x = 0; x < client_width; ++x)
             {
+                /// TODO. Use SSE.
                 *output++ = packHiColor(*input++);
             }
         }
@@ -143,12 +146,14 @@ public:
 
     void render()
     {
-        for (unsigned y = 0; y < height; ++y)
+        for (unsigned y = 0; y < client_height; ++y)
         {
             unsigned short * input = reinterpret_cast<unsigned short *>(data.data() + y * client_width * 2);
             unsigned * output = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(underlying) + y * width * 4);
             for (unsigned x = 0; x < client_width; ++x)
             {
+                /// TODO. Use SSE, but only in foreground processing because we gonna outrun client application
+                /// and catch rendering glitches.
                 *output++ = unpackHiColor(*input++);
             }
         }
@@ -158,6 +163,8 @@ public:
     {
         description.lpSurface = data.data();
         description.lPitch = client_width * 2;
+        description.dwWidth = client_width;
+        description.dwHeight = client_height;
         description.ddpfPixelFormat.dwRGBBitCount = 16;
         description.ddpfPixelFormat.dwRBitMask = 0xF800;
         description.ddpfPixelFormat.dwGBitMask = 0x07E0; /// 5:6:5

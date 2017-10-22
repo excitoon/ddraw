@@ -232,7 +232,7 @@ public:
                     std::copy(reinterpret_cast<unsigned char *>(&it->second.DDSurfaceDesc),
                             reinterpret_cast<unsigned char *>(&it->second.DDSurfaceDesc) + it->second.DDSurfaceDesc.dwSize,
                             reinterpret_cast<unsigned char *>(lpDDSurfaceDesc));
-                    lpDDSurfaceDesc->lpSurface = it->second.data.data();
+                    it->second.fillSurfaceDescription(*lpDDSurfaceDesc);
                     result = DD_OK;
                 }
                 else
@@ -240,8 +240,9 @@ public:
                     result = scheduler.makeTask<HRESULT>([&]() { return underlying->Lock(lpDestRect, lpDDSurfaceDesc, dwFlags, hEvent); });
                     if (result == DD_OK && lpDDSurfaceDesc->dwFlags & DDSD_WIDTH && lpDDSurfaceDesc->dwFlags & DDSD_HEIGHT)
                     {
-                        lpDDSurfaceDesc->lpSurface = buffers.emplace(std::piecewise_construct, std::forward_as_tuple(lpDestRect),
-                                std::forward_as_tuple(&scheduler, underlying, lpDDSurfaceDesc, dwFlags)).first->second.data.data();
+                        auto it = buffers.emplace(std::piecewise_construct, std::forward_as_tuple(lpDestRect),
+                                std::forward_as_tuple(&scheduler, underlying, lpDDSurfaceDesc, dwFlags)).first;
+                        it->second.fillSurfaceDescription(*lpDDSurfaceDesc);
                         HRESULT result2 = scheduler.makeTask<HRESULT>([&]() { return underlying->Unlock(lpDestRect); });
                         /// If we failed to Unlock() we're doomed.
                         if (result2 != DD_OK)
@@ -259,23 +260,14 @@ public:
                     auto it = buffers.find(lpDestRect);
                     if (it != buffers.end())
                     {
-                        if (Constants::AllowToUseUnlockedSurfaceMemory && it->first.is_null)
-                        {
-                            if (Constants::ReadFromSurfaceMemoryOncePerBuffer)
-                            {
-                                it->second.underlying = lpDDSurfaceDesc->lpSurface;
-                            }
-                            else
-                            {
-                                it->second.load(lpDDSurfaceDesc->lpSurface);
-                            }
-                            lpDDSurfaceDesc->lpSurface = it->second.data.data();
-                        }
+                        /// In foreground rendering we delete buffer each Unlock().
+                        log(Logger::Level::Error) << "This is impossible situation.";
                     }
                     else
                     {
-                        lpDDSurfaceDesc->lpSurface = buffers.emplace(std::piecewise_construct, std::forward_as_tuple(lpDestRect),
-                                std::forward_as_tuple(&scheduler, underlying, lpDDSurfaceDesc, dwFlags)).first->second.data.data();
+                        it = buffers.emplace(std::piecewise_construct, std::forward_as_tuple(lpDestRect),
+                                std::forward_as_tuple(&scheduler, underlying, lpDDSurfaceDesc, dwFlags)).first;
+                        it->second.fillSurfaceDescription(*lpDDSurfaceDesc);
                     }
                 }
             }

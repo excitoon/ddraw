@@ -92,6 +92,7 @@ public:
     DDSURFACEDESC2 DDSurfaceDesc;
     unsigned lock_flags;
     unsigned width;
+    unsigned client_width;
     unsigned height;
 
     Buffer()
@@ -105,9 +106,10 @@ public:
         DDSurfaceDesc(*lpDDSurfaceDesc),
         lock_flags(lock_flags),
         width(lpDDSurfaceDesc->dwWidth),
+        client_width(std::min(width, Constants::MaxPrimarySurfaceBufferWidth)),
         height(lpDDSurfaceDesc->dwHeight)
     {
-        data.resize(height*width*4);
+        data.resize(client_width * height * 2);
         if (Constants::InitializeBuffersWithZeros)
         {
             this->underlying = underlying;
@@ -131,8 +133,8 @@ public:
         for (unsigned y = 0; y < height; ++y)
         {
             unsigned * input = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(underlying) + y * width * 4);
-            unsigned short * output = reinterpret_cast<unsigned short *>(data.data() + y * width * 4);
-            for (unsigned x = 0; x < width; ++x)
+            unsigned short * output = reinterpret_cast<unsigned short *>(data.data() + y * client_width * 2);
+            for (unsigned x = 0; x < client_width; ++x)
             {
                 *output++ = packHiColor(*input++);
             }
@@ -143,13 +145,24 @@ public:
     {
         for (unsigned y = 0; y < height; ++y)
         {
-            unsigned short * input = reinterpret_cast<unsigned short *>(data.data() + y * width * 4);
+            unsigned short * input = reinterpret_cast<unsigned short *>(data.data() + y * client_width * 2);
             unsigned * output = reinterpret_cast<unsigned *>(reinterpret_cast<unsigned char *>(underlying) + y * width * 4);
-            for (unsigned x = 0; x < width; ++x)
+            for (unsigned x = 0; x < client_width; ++x)
             {
                 *output++ = unpackHiColor(*input++);
             }
         }
+    }
+
+    void fillSurfaceDescription(DDSURFACEDESC2 & description)
+    {
+        description.lpSurface = data.data();
+        description.lPitch = client_width * 2;
+        description.ddpfPixelFormat.dwRGBBitCount = 16;
+        description.ddpfPixelFormat.dwRBitMask = 0xF800;
+        description.ddpfPixelFormat.dwGBitMask = 0x07E0; /// 5:6:5
+        description.ddpfPixelFormat.dwBBitMask = 0x001F;
+        description.ddpfPixelFormat.dwRGBAlphaBitMask = 0;
     }
 
     bool lock()

@@ -102,6 +102,17 @@ public:
     {
         LPDIRECTDRAWSURFACE7 lpDDSurface = nullptr;
         bool is_primary_surface = lpDDSurfaceDesc2->dwFlags & DDSD_CAPS && lpDDSurfaceDesc2->ddsCaps.dwCaps & DDSCAPS_PRIMARYSURFACE;
+        if (!is_primary_surface && Constants::Emulate16BitsPerPixel)
+        {
+            lpDDSurfaceDesc2->dwFlags |= DDSD_PIXELFORMAT;
+            lpDDSurfaceDesc2->ddpfPixelFormat.dwSize = sizeof(DDPIXELFORMAT);
+            lpDDSurfaceDesc2->ddpfPixelFormat.dwFlags = DDPF_RGB;
+            lpDDSurfaceDesc2->ddpfPixelFormat.dwRGBBitCount = 16;
+            lpDDSurfaceDesc2->ddpfPixelFormat.dwRBitMask = 0xF800;
+            lpDDSurfaceDesc2->ddpfPixelFormat.dwGBitMask = 0x07E0; /// 5:6:5
+            lpDDSurfaceDesc2->ddpfPixelFormat.dwBBitMask = 0x001F;
+            lpDDSurfaceDesc2->ddpfPixelFormat.dwRGBAlphaBitMask = 0;
+        }
         HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->CreateSurface(lpDDSurfaceDesc2, &lpDDSurface, pUnkOuter); });
         /// TODO. Save description to surface.
         *lplpDDSurface = getWrappedSurface(lpDDSurface, is_primary_surface);

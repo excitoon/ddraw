@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <functional>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 
@@ -25,6 +26,8 @@ class Scheduler
         Task task;
 
     public:
+        std::mutex processing;
+
         void post(Task && task)
         {
             while (pending_task)
@@ -121,12 +124,9 @@ public:
         if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
             ThreadData & data = thread_data[getIndex()];
-            std::atomic<bool> done = { false };
-            data.post([&]() { result = task(); done = true; });
-            while (!done)
-            {
-                std::this_thread::yield();
-            }
+            std::unique_lock<std::mutex> lock(data.processing);
+            data.post([&]() { auto my_lock = std::move(lock); result = task(); });
+            std::lock_guard<std::mutex> wait(data.processing);
         }
         else
         {

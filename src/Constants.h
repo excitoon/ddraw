@@ -14,6 +14,8 @@ struct Constants
     static const bool AllowTrashInSurfaceUnlockRect = true;
 
     static const bool DisableExclusiveCooperativeLevel = true;
+
+    static const unsigned MaxThreads = 16;
 };
 
 const bool Constants::Emulate16BitsPerPixel;
@@ -24,3 +26,4 @@ const unsigned Constants::MaxPrimarySurfaceBufferWidth;
 const unsigned Constants::MaxPrimarySurfaceBufferHeight;
 const bool Constants::AllowTrashInSurfaceUnlockRect;
 const bool Constants::DisableExclusiveCooperativeLevel;
+const unsigned Constants::MaxThreads;

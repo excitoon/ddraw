@@ -1,11 +1,12 @@
 #pragma once
 
-#include <array>
 #include <atomic>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
+#include <vector>
 
 #include "Logger.h"
 #include "Constants.h"
@@ -26,6 +27,13 @@ class Scheduler
         Task task;
 
     public:
+        std::thread::id id;
+
+        ThreadData(std::thread::id id):
+            id(id)
+        {
+        }
+
         std::mutex processing;
 
         void post(Task && task)
@@ -52,53 +60,33 @@ class Scheduler
 
     Logger log = Logger(Logger::Level::Trace, "Scheduler");
 
-    std::array<ThreadData, 2> thread_data;
-    std::thread::id first_thread;
-    std::thread::id second_thread;
+    std::vector<std::unique_ptr<ThreadData>> thread_data;
+    std::mutex add_new_thread;
 
     volatile bool shutting_down = false;
 
     std::thread worker;
 
-    unsigned getIndex()
-    {
-        auto this_id = std::this_thread::get_id();
-        if (this_id == first_thread)
-        {
-            return 0;
-        }
-        else if (this_id == second_thread)
-        {
-            return 1;
-        }
-
-        /// Exactly two threads will appear here, once and in order.
-        if (first_thread == std::thread::id())
-        {
-            first_thread = this_id;
-            return 0;
-        }
-        else if (second_thread == std::thread::id())
-        {
-            second_thread = this_id;
-            return 1;
-        }
-        else
-        {
-            throw std::runtime_error("We only support two threads.");
-        }
-    }
-
 public:
     Scheduler()
     {
+        thread_data.reserve(Constants::MaxThreads);
         if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
             worker = std::thread([this]()
             {
                 while (!shutting_down)
                 {
-                    if (!thread_data[0].work() && !thread_data[1].work())
+                    bool no_load = false;
+                    for (auto & data : thread_data)
+                    {
+                        if (data->id == std::thread::id())
+                        {
+                            break;
+                        }
+                        no_load |= data->work();
+                    }
+                    if (no_load)
                     {
                         std::this_thread::yield();
                     }
@@ -116,16 +104,41 @@ public:
         }
     }
 
+    ThreadData & getData()
+    {
+        for (auto & data : thread_data)
+        {
+            if (data->id == std::this_thread::get_id())
+            {
+                return *data.get();
+            }
+            if (data->id == std::thread::id())
+            {
+                break;
+            }
+        }
+        if (thread_data.capacity() > thread_data.size())
+        {
+            /// We use this lock only for initialization.
+            /// If threads disappear client application may waste all effort.
+            std::lock_guard<std::mutex> lock(add_new_thread);
+            thread_data.push_back(std::make_unique<ThreadData>(std::this_thread::get_id()));
+            return *thread_data.back().get();
+        }
+        /// TODO. Make something predictable.
+        throw std::runtime_error("Too many threads.");
+    }
+
     /// TODO. Use std::invoke_result_t<SpecificTask> in 2018.
     template <typename ResultType, typename SpecificTask>
-    ResultType makeTask(SpecificTask && task)
+    inline ResultType makeTask(SpecificTask && task)
     {
         ResultType result;
         if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
-            ThreadData & data = thread_data[getIndex()];
+            ThreadData & data = getData();
             std::unique_lock<std::mutex> lock(data.processing);
-            data.post([&]() { auto my_lock = std::move(lock); result = task(); });
+            data.post([&]() { std::unique_lock<std::mutex> my_lock = std::move(lock); result = task(); });
             std::lock_guard<std::mutex> wait(data.processing);
         }
         else

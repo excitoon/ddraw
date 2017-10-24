@@ -228,22 +228,24 @@ public:
     {
         log() << "SetCooperativeLevel(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", hwnd=" << std::hex << std::setfill('0') << std::setw(8) << hWnd << std::dec
-            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ").";
+            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ") started.";
         if (Constants::DisableExclusiveCooperativeLevel)
         {
             if (dwFlags & DDSCL_EXCLUSIVE)
             {
-                dwFlags = (dwFlags & ~DDSCL_EXCLUSIVE) | DDSCL_NORMAL;
+                dwFlags = (dwFlags & ~DDSCL_EXCLUSIVE & ~DDSCL_FULLSCREEN & ~DDSCL_ALLOWMODEX) | DDSCL_NORMAL;
             }
         }
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetCooperativeLevel(hWnd, dwFlags); });
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->SetCooperativeLevel(hWnd, dwFlags); });
+        log() << "SetCooperativeLevel() finished, result=" << result << ".";
+        return result;
     }
 
     virtual __stdcall HRESULT SetDisplayMode(DWORD dwWidth, DWORD dwHeight, DWORD dwBPP, DWORD dwRefreshRate, DWORD dwFlags)
     {
         log() << "SetDisplayMode(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", width=" << dwWidth << ", height=" << dwHeight << ", bpp=" << dwBPP << ", refreshRate=" << dwRefreshRate
-            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ").";
+            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ") started.";
         if (Constants::Emulate16BitsPerPixel)
         {
             if (dwBPP == 16)
@@ -251,7 +253,9 @@ public:
                 dwBPP = 32;
             }
         }
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetDisplayMode(dwWidth, dwHeight, dwBPP, dwRefreshRate, dwFlags); });
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->SetDisplayMode(dwWidth, dwHeight, dwBPP, dwRefreshRate, dwFlags); });
+        log() << "SetDisplayMode() finished, result=" << result << ".";
+        return result;
     }
 
     virtual __stdcall HRESULT WaitForVerticalBlank(DWORD arg1, HANDLE arg2)

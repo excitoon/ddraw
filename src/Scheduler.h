@@ -26,6 +26,7 @@ class Scheduler
     std::condition_variable work_pending;
     std::mutex mutex_pending;
 
+    bool initialized = false;
     volatile bool shutting_down = false;
 
     std::thread worker;
@@ -33,6 +34,15 @@ class Scheduler
 public:
     Scheduler()
     {
+    }
+
+    inline void initialize()
+    {
+        if (initialized)
+        {
+            return;
+        }
+        initialized = true;
         if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
             worker = std::thread([this]()
@@ -61,7 +71,7 @@ public:
                 std::lock_guard<std::mutex> lock(mutex_pending);
                 shutting_down = true;
             }
-            work_pending.notify_one();
+            /// FIXME. If we notify work_pending, loader will enter deadlock.
 
             if (worker.joinable())
             {
@@ -85,6 +95,7 @@ public:
             std::unique_lock<std::mutex> lock_done(mutex_done);
             {
                 std::lock_guard<std::mutex> lock(mutex_pending);
+                initialize();
                 tasks.emplace_back([&]()
                 {
                     result = task();

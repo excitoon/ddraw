@@ -22,10 +22,4 @@ set_target_properties (ddraw PROPERTIES PREFIX "")
 set_target_properties (ddraw PROPERTIES COMPILE_FLAGS "-m32")
 set_target_properties (ddraw PROPERTIES LINK_FLAGS "-static -static-libstdc++ -static-libgcc -m32 -Wl,--kill-at")
 
-add_executable (hello hello.cpp)
-set_target_properties (hello PROPERTIES COMPILE_FLAGS "-m32")
-set_target_properties (hello PROPERTIES LINK_FLAGS "-m32")
-add_test (hello hello)
-set_tests_properties (hello PROPERTIES TIMEOUT 1)
-
 add_subdirectory (tests)

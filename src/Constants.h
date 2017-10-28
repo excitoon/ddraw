@@ -15,7 +15,7 @@ struct Constants
 
     static const bool AllowTrashInSurfaceUnlockRect = true;
 
-    static const bool DisableExclusiveCooperativeLevel = false;
+    static const bool DisableExclusiveCooperativeLevel = true;
 
     static const LogLevel LogFilterLevel = LogLevel::Trace;
 };

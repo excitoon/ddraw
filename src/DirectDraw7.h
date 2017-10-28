@@ -241,11 +241,11 @@ public:
         return result;
     }
 
-    virtual __stdcall HRESULT SetDisplayMode(DWORD dwWidth, DWORD dwHeight, DWORD dwBPP, DWORD dwRefreshRate, DWORD dwFlags)
+    virtual __stdcall HRESULT SetDisplayMode(DWORD dwWidth, DWORD dwHeight, DWORD dwBPP/*, DWORD dwRefreshRate, DWORD dwFlags*/)
     {
+        /// FIXME. This function has 3 arguments in first version and 5 in last one.
         log() << "SetDisplayMode(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
-            << ", width=" << dwWidth << ", height=" << dwHeight << ", bpp=" << dwBPP << ", refreshRate=" << dwRefreshRate
-            << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ") started.";
+            << ", width=" << dwWidth << ", height=" << dwHeight << ", bpp=" << dwBPP << ") started.";
         if (Constants::Emulate16BitsPerPixel)
         {
             if (dwBPP == 16)
@@ -253,7 +253,9 @@ public:
                 dwBPP = 32;
             }
         }
-        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->SetDisplayMode(dwWidth, dwHeight, dwBPP, dwRefreshRate, dwFlags); });
+        DWORD dwRefreshRate = 0;
+        DWORD dwFlags = 0;
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return reinterpret_cast<IDirectDraw *>(underlying)->SetDisplayMode(dwWidth, dwHeight, dwBPP/*, dwRefreshRate, dwFlags*/); });
         log() << "SetDisplayMode() finished, result=" << result << ".";
         return result;
     }

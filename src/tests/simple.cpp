@@ -10,7 +10,17 @@ int main(int argc, char ** argv)
     HMODULE hdll;
     DirectDrawCreateType directDrawCreate;
     hdll = LoadLibrary(argv[1]);
+    if (hdll == nullptr)
+    {
+        std::cout << "LoadLibrary() failed.\n";
+        return 6;
+    }
     directDrawCreate = reinterpret_cast<DirectDrawCreateType>(GetProcAddress(hdll, "DirectDrawCreate"));
+    if (directDrawCreate == nullptr)
+    {
+        std::cout << "GetProcAddress() failed.\n";
+        return 7;
+    }
     IDirectDraw * dd;
     HRESULT result = directDrawCreate(nullptr, &dd, nullptr);
     if (result != DD_OK)

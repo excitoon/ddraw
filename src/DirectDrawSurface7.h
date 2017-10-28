@@ -9,6 +9,7 @@
 
 #include "Buffer.h"
 #include "Constants.h"
+#include "LogLevel.h"
 #include "Logger.h"
 #include "Scheduler.h"
 #include "Unknown.h"
@@ -25,7 +26,7 @@ class DirectDrawSurface7 : public Unknown<DirectDrawSurface7<SurfaceHolder>>
 
     std::unordered_map<Buffer::Key, Buffer, Buffer::Key::Hasher> buffers;
 
-    Logger log = Logger(Logger::Level::Trace, "DirectDrawSurface7");
+    Logger log = Logger("DirectDrawSurface7");
 
 public:
     DirectDrawSurface7(Scheduler & scheduler, SurfaceHolder & surface_holder, IDirectDrawSurface7 * underlying, bool is_primary):
@@ -209,13 +210,13 @@ public:
 
     virtual __stdcall HRESULT IsLost()
     {
-        log(Logger::Level::Trace) << "IsLost.";
+        log(LogLevel::Trace) << "IsLost.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->IsLost(); });
     }
 
     virtual __stdcall HRESULT Lock(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSurfaceDesc, DWORD dwFlags, HANDLE hEvent)
     {
-        log(Logger::Level::Trace) << "Lock() started.";
+        log(LogLevel::Trace) << "Lock() started.";
         HRESULT result;
         if (Constants::Emulate16BitsPerPixel && is_primary)
         {
@@ -247,7 +248,7 @@ public:
                         /// If we failed to Unlock() we're doomed.
                         if (result2 != DD_OK)
                         {
-                            log(Logger::Level::Error) << "Unlock() failed.";
+                            log(LogLevel::Error) << "Unlock() failed.";
                         }
                     }
                 }
@@ -261,7 +262,7 @@ public:
                     if (it != buffers.end())
                     {
                         /// In foreground rendering we delete buffer each Unlock().
-                        log(Logger::Level::Error) << "This is impossible situation.";
+                        log(LogLevel::Error) << "This is impossible situation.";
                     }
                     else
                     {
@@ -284,7 +285,7 @@ public:
                 lpDDSurfaceDesc->ddpfPixelFormat.dwRGBAlphaBitMask = 0;
             }
         }
-        log(Logger::Level::Trace) << "Lock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
+        log(LogLevel::Trace) << "Lock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", rect=" << std::hex << std::setfill('0') << std::setw(8) << lpDestRect << std::dec
             << ", flags=" << std::hex << std::setfill('0') << std::setw(8) << dwFlags << std::dec << ")"
             << " -> width=" << lpDDSurfaceDesc->dwWidth << ", height=" << lpDDSurfaceDesc->dwHeight
@@ -331,7 +332,7 @@ public:
 
     virtual __stdcall HRESULT Unlock(LPRECT lpRect)
     {
-        log(Logger::Level::Trace) << "Unlock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
+        log(LogLevel::Trace) << "Unlock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", rect=" << (lpRect == nullptr ? std::string("NULL")
                 : std::string("{") + std::to_string(lpRect->left) + ", " + std::to_string(lpRect->top) + ", "
                 + std::to_string(lpRect->right) + ", " + std::to_string(lpRect->bottom) + "}") << ").";
@@ -373,7 +374,7 @@ public:
             }
             else
             {
-                log(Logger::Level::Error) << "Unlocking unknown rect.";
+                log(LogLevel::Error) << "Unlocking unknown rect.";
                 result = scheduler.makeTask<HRESULT>([&]() { return underlying->Unlock(lpRect); });
             }
         }
@@ -381,7 +382,7 @@ public:
         {
             result = scheduler.makeTask<HRESULT>([&]() { return underlying->Unlock(lpRect); });
         }
-        log(Logger::Level::Trace) << "Unlock() finished.";
+        log(LogLevel::Trace) << "Unlock() finished.";
         return result;
     }
 

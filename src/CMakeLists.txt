@@ -4,6 +4,8 @@ project (ddraw)
 
 enable_testing ()
 
+include_directories (.)
+
 add_definitions (-D_NTDDDISK_H_) # Avoiding redefinition of Unknown.
 
 set (RESOURCE_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ddrawrc.o")
@@ -23,3 +25,6 @@ add_executable (hello hello.cpp)
 set_target_properties (hello PROPERTIES COMPILE_FLAGS "-m32")
 set_target_properties (hello PROPERTIES LINK_FLAGS "-m32")
 add_test (hello hello)
+set_tests_properties (hello PROPERTIES TIMEOUT 1)
+
+add_subdirectory (tests)

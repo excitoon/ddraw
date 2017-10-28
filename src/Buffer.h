@@ -11,6 +11,7 @@
 #include <windows.h>
 
 #include "Constants.h"
+#include "LogLevel.h"
 #include "Logger.h"
 #include "Scheduler.h"
 
@@ -42,7 +43,7 @@ class Buffer
     IDirectDrawSurface7 * surface;
     std::once_flag background_thread_initialized;
 
-    Logger log = Logger(Logger::Level::Trace, "DirectDrawSurface7::Buffer");
+    Logger log = Logger("DirectDrawSurface7::Buffer");
 
 public:
     struct Key
@@ -125,8 +126,12 @@ public:
 
     ~Buffer()
     {
-        shutting_down = true;
-        cv.notify_one(); /// FIXME. That must be done under lock.
+        shutting_down = true; /// FIXME. That must be done under lock.
+        cv.notify_one();
+        if (background_render.joinable())
+        {
+            background_render.detach(); /// FIXME. Workaround to loader deadlock issue.
+        }
     }
 
     void load(void * underlying)
@@ -179,14 +184,14 @@ public:
         HRESULT result = scheduler->makeTask<HRESULT>([&]() { return surface->Lock(nullptr, &DDSurfaceDesc, lock_flags, nullptr); });
         if (result == DDERR_SURFACEBUSY)
         {
-            log(Logger::Level::Trace) << "Surface is busy, retrying.";
+            log(LogLevel::Trace) << "Surface is busy, retrying.";
             renderInBackground();
             return false;
         }
         else if (result != DD_OK)
         {
             /// TODO. Possibly we need to try another arguments.
-            log(Logger::Level::Warning) << "Lock() failed, result=" << result << ".";
+            log(LogLevel::Warning) << "Lock() failed, result=" << result << ".";
             return false;
         }
         return true;
@@ -197,7 +202,7 @@ public:
         HRESULT result = scheduler->makeTask<HRESULT>([&]() { return surface->Unlock(nullptr); });
         if (result != DD_OK)
         {
-            log(Logger::Level::Error) << "Unlock() failed.";
+            log(LogLevel::Error) << "Unlock() failed.";
         }
     }
 
@@ -229,7 +234,7 @@ public:
         {
             return;
         }
-        pending_render = true;
-        cv.notify_one(); /// FIXME. That must be done under lock.
+        pending_render = true; /// FIXME. That must be done under lock.
+        cv.notify_one();
     }
 };

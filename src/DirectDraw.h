@@ -80,4 +80,4 @@ HMODULE DirectDraw::hdll;
 HRESULT WINAPI __stdcall (* DirectDraw::OriginalDirectDrawCreate)(GUID FAR * lpGUID, LPDIRECTDRAW FAR * lplpDD, IUnknown FAR * pUnkOuter);
 HRESULT WINAPI __stdcall (* DirectDraw::OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
 Scheduler DirectDraw::scheduler;
-Logger DirectDraw::log(Logger::Level::Trace, "DirectDraw");
+Logger DirectDraw::log("DirectDraw");

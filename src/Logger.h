@@ -6,25 +6,17 @@
 #include <chrono>
 #include <thread>
 
+#include "Constants.h"
+#include "LogLevel.h"
+
 
 class Logger
 {
     std::ofstream log;
     std::string tag;
 
-public:
-    enum class Level
-    {
-        Fatal,
-        Error,
-        Warning,
-        Information,
-        Debug,
-        Trace
-    };
-
 private:
-    Level filter = Level::Warning;
+    LogLevel filter = LogLevel::Warning;
 
 public:
     class Log
@@ -60,15 +52,16 @@ public:
         }
     };
 
-    Logger(Level filter, const std::string & tag) :
+    Logger(const std::string & tag):
+        filter(Constants::LogFilterLevel),
         log("ddraw.log", std::ios_base::app | std::ios_base::out),
         tag(tag)
     {
     }
 
-    Log operator ()(Level level = Level::Information)
+    Log operator ()(LogLevel level = LogLevel::Information)
     {
-        if (static_cast<unsigned>(level) < static_cast<unsigned>(filter))
+        if (static_cast<unsigned>(level) > static_cast<unsigned>(filter))
         {
             return {};
         }
@@ -81,12 +74,12 @@ public:
         log << "[ " << std::this_thread::get_id() << " ] <";
         switch (level)
         {
-            case Level::Fatal: log << "Fatal"; break;
-            case Level::Error: log << "Error"; break;
-            case Level::Warning: log << "Warning"; break;
-            case Level::Information: log << "Information"; break;
-            case Level::Debug: log << "Debug"; break;
-            case Level::Trace: log << "Trace"; break;
+            case LogLevel::Fatal: log << "Fatal"; break;
+            case LogLevel::Error: log << "Error"; break;
+            case LogLevel::Warning: log << "Warning"; break;
+            case LogLevel::Information: log << "Information"; break;
+            case LogLevel::Debug: log << "Debug"; break;
+            case LogLevel::Trace: log << "Trace"; break;
             default: log << "Unknown";
         }
         log << "> " << tag << ": ";

@@ -5,11 +5,11 @@
 
 #include <windows.h>
 
-#include "Unknown.h"
 #include "Logger.h"
 #include "Constants.h"
 #include "DirectDrawSurface7.h"
 #include "Scheduler.h"
+#include "Unknown.h"
 
 
 class DirectDraw7 : public Unknown<DirectDraw7>
@@ -20,7 +20,7 @@ class DirectDraw7 : public Unknown<DirectDraw7>
     std::unordered_map<DirectDrawSurface7<DirectDraw7> *, LPDIRECTDRAWSURFACE7> original_surfaces;
     /// TODO. Clear them on IDirectDrawSurface7::Release().
 
-    Logger log = Logger(Logger::Level::Trace, "DirectDraw7");
+    Logger log = Logger("DirectDraw7");
 
 public:
     DirectDraw7(Scheduler & scheduler, IDirectDraw7 * underlying):

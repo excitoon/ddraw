@@ -1,5 +1,7 @@
 #pragma once
 
+#include "LogLevel.h"
+
 
 struct Constants
 {
@@ -13,9 +15,9 @@ struct Constants
 
     static const bool AllowTrashInSurfaceUnlockRect = true;
 
-    static const bool DisableExclusiveCooperativeLevel = true;
+    static const bool DisableExclusiveCooperativeLevel = false;
 
-    static const unsigned MaxThreads = 16;
+    static const LogLevel LogFilterLevel = LogLevel::Trace;
 };
 
 const bool Constants::Emulate16BitsPerPixel;
@@ -26,4 +28,4 @@ const unsigned Constants::MaxPrimarySurfaceBufferWidth;
 const unsigned Constants::MaxPrimarySurfaceBufferHeight;
 const bool Constants::AllowTrashInSurfaceUnlockRect;
 const bool Constants::DisableExclusiveCooperativeLevel;
-const unsigned Constants::MaxThreads;
+const LogLevel Constants::LogFilterLevel;

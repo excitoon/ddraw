@@ -1,0 +1,5 @@
+add_executable (scheduler scheduler.cpp)
+set_target_properties (scheduler PROPERTIES COMPILE_FLAGS "-m32")
+set_target_properties (scheduler PROPERTIES LINK_FLAGS "-m32")
+add_test (scheduler scheduler)
+set_tests_properties (scheduler PROPERTIES TIMEOUT 1)

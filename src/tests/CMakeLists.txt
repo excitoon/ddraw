@@ -1,5 +1,9 @@
 string(REPLACE "\\" "/" SYSTEM_ROOT "$ENV{SystemRoot}")
 
+configure_file (paths.h.in "${CMAKE_CURRENT_BINARY_DIR}/paths.h")
+
+include_directories ("${CMAKE_CURRENT_BINARY_DIR}")
+
 add_executable (scheduler scheduler.cpp)
 set_target_properties (scheduler PROPERTIES COMPILE_FLAGS "-m32")
 set_target_properties (scheduler PROPERTIES LINK_FLAGS "-m32")

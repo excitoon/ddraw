@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -16,6 +17,7 @@
 #include "Scheduler.h"
 
 
+template <typename InterfaceDirectDrawSurface, typename DirectDrawSurfaceDescription>
 class Buffer
 {
     inline unsigned short packHiColor(unsigned color)
@@ -40,10 +42,10 @@ class Buffer
     volatile bool pending_render = false;
     volatile bool shutting_down = false;
     std::thread background_render;
-    IDirectDrawSurface7 * surface;
+    InterfaceDirectDrawSurface * surface;
     std::once_flag background_thread_initialized;
 
-    Logger log = Logger("DirectDrawSurface7::Buffer");
+    Logger log = Logger("DirectDrawSurface::Buffer");
 
 public:
     struct Key
@@ -69,6 +71,7 @@ public:
             if (lpRect == nullptr)
             {
                 is_null = true;
+                rect = { 0 };
             }
             else
             {
@@ -90,7 +93,7 @@ public:
 
     void * underlying = nullptr;
     std::vector<unsigned char> data;
-    DDSURFACEDESC2 DDSurfaceDesc;
+    DirectDrawSurfaceDescription surface_description;
     unsigned lock_flags;
     unsigned width;
     unsigned client_width;
@@ -101,15 +104,15 @@ public:
     {
     }
 
-    Buffer(Scheduler * scheduler, IDirectDrawSurface7 * surface, DDSURFACEDESC2 * lpDDSurfaceDesc, unsigned lock_flags):
+    Buffer(Scheduler * scheduler, InterfaceDirectDrawSurface * surface, DirectDrawSurfaceDescription * description, unsigned lock_flags):
         scheduler(scheduler),
         surface(surface),
-        underlying(lpDDSurfaceDesc->lpSurface),
-        DDSurfaceDesc(*lpDDSurfaceDesc),
+        underlying(description->lpSurface),
+        surface_description(*description),
         lock_flags(lock_flags),
-        width(lpDDSurfaceDesc->dwWidth),
+        width(description->dwWidth),
         client_width(std::min(width, Constants::MaxPrimarySurfaceBufferWidth)),
-        height(lpDDSurfaceDesc->dwHeight),
+        height(description->dwHeight),
         client_height(std::min(height, Constants::MaxPrimarySurfaceBufferHeight))
     {
         data.resize(client_width * client_height * 2);
@@ -126,11 +129,14 @@ public:
 
     ~Buffer()
     {
-        shutting_down = true; /// FIXME. That must be done under lock.
-        cv.notify_one();
         if (background_render.joinable())
         {
-            background_render.detach(); /// FIXME. Workaround to loader deadlock issue.
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                shutting_down = true;
+            }
+            cv.notify_one();
+            background_render.join();
         }
     }
 
@@ -164,7 +170,7 @@ public:
         }
     }
 
-    void fillSurfaceDescription(DDSURFACEDESC2 & description)
+    void fillSurfaceDescription(DirectDrawSurfaceDescription & description)
     {
         description.lpSurface = data.data();
         description.lPitch = client_width * 2;
@@ -181,7 +187,7 @@ public:
     {
         /// TODO. Assuming Lock() arguments are not changing and DDLOCK_WAIT is set in first call.
         /// If we are here then LPRECT is nullptr.
-        HRESULT result = scheduler->makeTask<HRESULT>([&]() { return surface->Lock(nullptr, &DDSurfaceDesc, lock_flags, nullptr); });
+        HRESULT result = scheduler->makeTask<HRESULT>([&]() { return surface->Lock(nullptr, &surface_description, lock_flags, nullptr); });
         if (result == DDERR_SURFACEBUSY)
         {
             log(LogLevel::Trace) << "Surface is busy, retrying.";
@@ -217,7 +223,7 @@ public:
                 {
                     std::unique_lock<std::mutex> unique_lock(mutex);
                     /// TODO. Optimize that.
-                    cv.wait(unique_lock, [this]() { return shutting_down || pending_render; });
+                    cv.wait_for(unique_lock, std::chrono::milliseconds(200), [this]() { return shutting_down || pending_render; });
                     if (pending_render)
                     {
                         pending_render = false;
@@ -234,7 +240,12 @@ public:
         {
             return;
         }
-        pending_render = true; /// FIXME. That must be done under lock.
+
+        {
+            /// std::lock_guard<std::mutex> lock(mutex);
+            /// This is too long, missing signals sometimes will be okay.
+            pending_render = true;
+        }
         cv.notify_one();
     }
 };

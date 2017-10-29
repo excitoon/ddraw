@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <paths.h>
+
 
 int main(int argc, char ** argv)
 {
@@ -9,7 +11,7 @@ int main(int argc, char ** argv)
     HMODULE hdll;
     pfunc hello;
     std::cout << "LoadLibrary.\n" << std::flush;
-    hdll = LoadLibrary(argv[1]);
+    hdll = LoadLibrary(argc > 1 ? argv[1] : DDRAW_DEFAULT_PATH);
     if (hdll == nullptr)
     {
         std::cout << "LoadLibrary() failed.\n";

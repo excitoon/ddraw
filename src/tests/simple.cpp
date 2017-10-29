@@ -3,13 +3,15 @@
 #include <windows.h>
 #include <ddraw.h>
 
+#include <paths.h>
+
 
 int main(int argc, char ** argv)
 {
     using DirectDrawCreateType = HRESULT WINAPI __stdcall (*)(GUID FAR * lpGuid, LPDIRECTDRAW * lplpDD, IUnknown FAR * pUnkOuter);
     HMODULE hdll;
     DirectDrawCreateType directDrawCreate;
-    hdll = LoadLibrary(argv[1]);
+    hdll = LoadLibrary(argc > 1 ? argv[1] : DDRAW_DEFAULT_PATH);
     if (hdll == nullptr)
     {
         std::cout << "LoadLibrary() failed.\n";
@@ -57,6 +59,18 @@ int main(int argc, char ** argv)
     {
         std::cout << "Unlock() failed.\n";
         return 5;
+    }
+    ULONG ref_count = dds->Release();
+    if (ref_count != 0)
+    {
+        std::cout << "DirectDrawSurface::Release() failed.\n";
+        return 8;
+    }
+    ref_count = dd->Release();
+    if (ref_count != 0)
+    {
+        std::cout << "DirectDraw::Release() failed.\n";
+        return 9;
     }
     /// Won't call FreeLibrary().
     return 0;

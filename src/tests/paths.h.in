@@ -1,0 +1,1 @@
+#define DDRAW_DEFAULT_PATH "${CMAKE_BINARY_DIR}/ddraw.dll"

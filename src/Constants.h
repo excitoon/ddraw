@@ -13,8 +13,6 @@ struct Constants
     static const unsigned MaxPrimarySurfaceBufferWidth = 1024;
     static const unsigned MaxPrimarySurfaceBufferHeight = 768;
 
-    static const bool AllowTrashInSurfaceUnlockRect = true;
-
     static const bool DisableExclusiveCooperativeLevel = true;
 
     static const LogLevel LogFilterLevel = LogLevel::Trace;
@@ -26,6 +24,5 @@ const bool Constants::ReadFromSurfaceMemoryOncePerBuffer;
 const bool Constants::InitializeBuffersWithZeros;
 const unsigned Constants::MaxPrimarySurfaceBufferWidth;
 const unsigned Constants::MaxPrimarySurfaceBufferHeight;
-const bool Constants::AllowTrashInSurfaceUnlockRect;
 const bool Constants::DisableExclusiveCooperativeLevel;
 const LogLevel Constants::LogFilterLevel;

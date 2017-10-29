@@ -6,9 +6,6 @@ enable_testing ()
 
 include_directories (.)
 
-add_definitions (-D_NTDDDISK_H_) # Avoiding redefinition of Unknown.
-add_definitions (-DINITGUID)
-
 set (RESOURCE_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ddrawrc.o")
 add_custom_command (OUTPUT "${RESOURCE_OUTPUT}"
         COMMAND windres -i "${CMAKE_CURRENT_SOURCE_DIR}/ddraw.rc" -o "${RESOURCE_OUTPUT}"

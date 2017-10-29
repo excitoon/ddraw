@@ -7,30 +7,44 @@
 
 #include <windows.h>
 
+#include <interface/DirectDrawSurface.h>
 #include "Buffer.h"
 #include "Constants.h"
 #include "LogLevel.h"
 #include "Logger.h"
 #include "Scheduler.h"
-#include "Unknown.h"
+#include "UnknownFinal.h"
 
 
-template <typename SurfaceHolder>
-class DirectDrawSurface7 : public Unknown<DirectDrawSurface7<SurfaceHolder>>
+template <template <typename Final> typename Proxy, typename SurfaceHolder>
+class DirectDrawSurfaceFinal : public Proxy<DirectDrawSurfaceFinal<Proxy, SurfaceHolder>>, public UnknownFinal<DirectDrawSurfaceFinal<Proxy, SurfaceHolder>, interface::DirectDrawSurface>
 {
+    using Surface = DirectDrawSurfaceFinal<Proxy, SurfaceHolder>;
+    using OriginalSurface = interface::DirectDrawSurface;
+    using SurfaceDescription = DDSURFACEDESC;
+    using SurfaceCapabilities = DDSCAPS;
+
     Scheduler & scheduler;
-    IDirectDrawSurface7 * underlying;
+    OriginalSurface * underlying;
     SurfaceHolder & surface_holder;
 
     bool is_primary;
 
-    std::unordered_map<Buffer::Key, Buffer, Buffer::Key::Hasher> buffers;
+    using SurfaceBuffer = Buffer<OriginalSurface, SurfaceDescription>;
+    std::unordered_map<SurfaceBuffer::Key, SurfaceBuffer, SurfaceBuffer::Key::Hasher> buffers;
+    std::unordered_map<unsigned char *, SurfaceBuffer::Key> ptr_rect;
 
-    Logger log = Logger("DirectDrawSurface7");
+    Logger log = Logger("DirectDrawSurface");
+
+    template <typename MyInterface>
+    MyInterface & getUnderlying()
+    {
+        return *underlying;
+    }
 
 public:
-    DirectDrawSurface7(Scheduler & scheduler, SurfaceHolder & surface_holder, IDirectDrawSurface7 * underlying, bool is_primary):
-        Unknown<DirectDrawSurface7>(scheduler, underlying),
+    DirectDrawSurfaceFinal(Scheduler & scheduler, SurfaceHolder & surface_holder, OriginalSurface * underlying, bool is_primary):
+        UnknownFinal<Surface, OriginalSurface>(scheduler, underlying),
         scheduler(scheduler),
         underlying(underlying),
         surface_holder(surface_holder),
@@ -38,7 +52,7 @@ public:
     {
     }
 
-    ~DirectDrawSurface7()
+    ~DirectDrawSurfaceFinal()
     {
     }
 
@@ -47,135 +61,138 @@ public:
         return surface_holder;
     }
 
-    virtual __stdcall HRESULT AddAttachedSurface(LPDIRECTDRAWSURFACE7 arg)
+    HRESULT addAttachedSurface(OriginalSurface * arg)
     {
         log() << "AddAttachedSurface.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->AddAttachedSurface(surface_holder.getOriginalSurface(arg)); });
     }
 
-    virtual __stdcall HRESULT AddOverlayDirtyRect(LPRECT arg)
+    HRESULT addOverlayDirtyRect(LPRECT arg)
     {
         log() << "AddOverlayDirtyRect.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->AddOverlayDirtyRect(arg); });
     }
 
-    virtual __stdcall HRESULT Blt(LPRECT arg1, LPDIRECTDRAWSURFACE7 arg2, LPRECT arg3, DWORD arg4, LPDDBLTFX arg5)
+    HRESULT blt(LPRECT arg1, OriginalSurface * arg2, LPRECT arg3, DWORD arg4, LPDDBLTFX arg5)
     {
         log() << "Blt.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->Blt(arg1, surface_holder.getOriginalSurface(arg2), arg3, arg4, arg5); });
     }
 
-    virtual __stdcall HRESULT BltBatch(LPDDBLTBATCH arg1, DWORD arg2, DWORD arg3)
+    HRESULT bltBatch(LPDDBLTBATCH arg1, DWORD arg2, DWORD arg3)
     {
         log() << "BltBatch.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->BltBatch(arg1, arg2, arg3); });
     }
 
-    virtual __stdcall HRESULT BltFast(DWORD arg1, DWORD arg2, LPDIRECTDRAWSURFACE7 arg3, LPRECT arg4, DWORD arg5)
+    HRESULT bltFast(DWORD arg1, DWORD arg2, OriginalSurface * arg3, LPRECT arg4, DWORD arg5)
     {
         log() << "BltFast.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->BltFast(arg1, arg2, surface_holder.getOriginalSurface(arg3), arg4, arg5); });
     }
 
-    virtual __stdcall HRESULT DeleteAttachedSurface(DWORD arg1, LPDIRECTDRAWSURFACE7 arg2)
+    HRESULT deleteAttachedSurface(DWORD arg1, OriginalSurface * arg2)
     {
         log() << "DeleteAttachedSurface.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->DeleteAttachedSurface(arg1, surface_holder.getOriginalSurface(arg2)); });
     }
 
-    struct WrapperContext
+    template <typename Callback>
+    struct WrappedContext
     {
         LPVOID lpContext;
-        LPDDENUMSURFACESCALLBACK7 lpEnumSurfacesCallback;
+        Callback lpEnumSurfacesCallback;
         DWORD dwFlags;
-        DirectDrawSurface7<SurfaceHolder> & direct_draw_surface7;
+        Surface & surface;
+
+        static __stdcall HRESULT enumSurfacesCallback(OriginalSurface * lpDDSurface, SurfaceDescription * lpDDSurfaceDesc, LPVOID lpContext)
+        {
+            WrappedContext<Callback> & context = *static_cast<WrappedContext<Callback> *>(lpContext);
+            context.surface.log() << "EnumSurfacesCallback.";
+            return context.lpEnumSurfacesCallback(context.surface.getSurfaceHolder().getWrappedSurface(lpDDSurface), lpDDSurfaceDesc, context.lpContext);
+        }
     };
 
-    static __stdcall HRESULT EnumSurfacesCallback7(LPDIRECTDRAWSURFACE7 lpDDSurface, LPDDSURFACEDESC2 lpDDSurfaceDesc, LPVOID lpContext)
-    {
-        WrapperContext & context = *static_cast<WrapperContext *>(lpContext);
-        context.direct_draw_surface7.log() << "EnumSurfacesCallback7.";
-        return context.lpEnumSurfacesCallback(context.direct_draw_surface7.getSurfaceHolder().getWrappedSurface(lpDDSurface), lpDDSurfaceDesc, context.lpContext);
-    }
-
-    virtual __stdcall HRESULT EnumAttachedSurfaces(LPVOID lpContext, LPDDENUMSURFACESCALLBACK7 lpEnumSurfacesCallback)
+    template <typename Callback>
+    HRESULT enumAttachedSurfaces(LPVOID lpContext, Callback lpEnumSurfacesCallback)
     {
         log() << "EnumAttachedSurfaces.";
-        WrapperContext wrapper_context{ lpContext, lpEnumSurfacesCallback, 0, *this };
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->EnumAttachedSurfaces(static_cast<LPVOID>(&wrapper_context), EnumSurfacesCallback7); });
+        WrappedContext<Callback> wrapped_context{ lpContext, lpEnumSurfacesCallback, 0, *this };
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->EnumAttachedSurfaces(static_cast<LPVOID>(&wrapped_context), WrappedContext<Callback>::enumSurfacesCallback); });
     }
 
-    virtual __stdcall HRESULT EnumOverlayZOrders(DWORD dwFlags, LPVOID lpContext, LPDDENUMSURFACESCALLBACK7 lpfnCallback)
+    template <typename Callback>
+    HRESULT enumOverlayZOrders(DWORD dwFlags, LPVOID lpContext, Callback lpfnCallback)
     {
         log() << "EnumOverlayZOrders.";
-        WrapperContext wrapper_context{ lpContext, lpfnCallback, dwFlags, *this };
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->EnumOverlayZOrders(dwFlags, static_cast<LPVOID>(&wrapper_context), EnumSurfacesCallback7); });
+        WrappedContext<Callback> wrapped_context{ lpContext, lpfnCallback, dwFlags, *this };
+        return scheduler.makeTask<HRESULT>([&]() { return underlying->EnumOverlayZOrders(dwFlags, static_cast<LPVOID>(&wrapped_context), WrappedContext<Callback>::enumSurfacesCallback); });
     }
 
-    virtual __stdcall HRESULT Flip(LPDIRECTDRAWSURFACE7 arg1, DWORD arg2)
+    HRESULT flip(OriginalSurface * arg1, DWORD arg2)
     {
         log() << "Flip.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->Flip(surface_holder.getOriginalSurface(arg1), arg2); });
     }
 
-    virtual __stdcall HRESULT GetAttachedSurface(LPDDSCAPS2 lpDDSCaps, LPDIRECTDRAWSURFACE7 FAR * lplpDDAttachedSurface)
+    HRESULT getAttachedSurface(SurfaceCapabilities * lpDDSCaps, OriginalSurface * FAR * lplpDDAttachedSurface)
     {
         log() << "GetAttachedSurface.";
-        LPDIRECTDRAWSURFACE7 lpDDAttachedSurface = nullptr;
+        OriginalSurface * lpDDAttachedSurface = nullptr;
         HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->GetAttachedSurface(lpDDSCaps, &lpDDAttachedSurface); });
         *lplpDDAttachedSurface = surface_holder.getWrappedSurface(lpDDAttachedSurface);
         return result;
     }
 
-    virtual __stdcall HRESULT GetBltStatus(DWORD arg)
+    HRESULT getBltStatus(DWORD arg)
     {
         log() << "GetBltStatus.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetBltStatus(arg); });
     }
 
-    virtual __stdcall HRESULT GetCaps(LPDDSCAPS2 arg)
+    HRESULT getCaps(SurfaceCapabilities * arg)
     {
         log() << "GetCaps.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetCaps(arg); });
     }
 
-    virtual __stdcall HRESULT GetClipper(LPDIRECTDRAWCLIPPER FAR * arg)
+    HRESULT getClipper(LPDIRECTDRAWCLIPPER FAR * arg)
     {
         log() << "GetClipper.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetClipper(arg); });
     }
 
-    virtual __stdcall HRESULT GetColorKey(DWORD arg1, LPDDCOLORKEY arg2)
+    HRESULT getColorKey(DWORD arg1, LPDDCOLORKEY arg2)
     {
         log() << "GetColorKey.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetColorKey(arg1, arg2); });
     }
 
-    virtual __stdcall HRESULT GetDC(HDC FAR * arg)
+    HRESULT getDC(HDC FAR * arg)
     {
         log() << "GetDC.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetDC(arg); });
     }
 
-    virtual __stdcall HRESULT GetFlipStatus(DWORD arg)
+    HRESULT getFlipStatus(DWORD arg)
     {
         log() << "GetFlipStatus.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetFlipStatus(arg); });
     }
 
-    virtual __stdcall HRESULT GetOverlayPosition(LPLONG arg1, LPLONG arg2)
+    HRESULT getOverlayPosition(LPLONG arg1, LPLONG arg2)
     {
         log() << "GetOverlayPosition.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetOverlayPosition(arg1, arg2); });
     }
 
-    virtual __stdcall HRESULT GetPalette(LPDIRECTDRAWPALETTE FAR * arg)
+    HRESULT getPalette(LPDIRECTDRAWPALETTE FAR * arg)
     {
         log() << "GetPalette.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetPalette(arg); });
     }
 
-    virtual __stdcall HRESULT GetPixelFormat(LPDDPIXELFORMAT lpDDPixelFormat)
+    HRESULT getPixelFormat(LPDDPIXELFORMAT lpDDPixelFormat)
     {
         HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->GetPixelFormat(lpDDPixelFormat); });
         log() << "GetPixelFormat(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec << ")"
@@ -196,25 +213,25 @@ public:
         return result;
     }
 
-    virtual __stdcall HRESULT GetSurfaceDesc(LPDDSURFACEDESC2 arg)
+    HRESULT getSurfaceDesc(SurfaceDescription * arg)
     {
         log() << "GetSurfaceDesc.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->GetSurfaceDesc(arg); });
     }
 
-    virtual __stdcall HRESULT Initialize(LPDIRECTDRAW arg1, LPDDSURFACEDESC2 arg2)
+    HRESULT initialize(LPDIRECTDRAW arg1, SurfaceDescription * arg2)
     {
         log() << "Initialize.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->Initialize(arg1, arg2); });
     }
 
-    virtual __stdcall HRESULT IsLost()
+    HRESULT isLost()
     {
         log(LogLevel::Trace) << "IsLost.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->IsLost(); });
     }
 
-    virtual __stdcall HRESULT Lock(LPRECT lpDestRect, LPDDSURFACEDESC2 lpDDSurfaceDesc, DWORD dwFlags, HANDLE hEvent)
+    HRESULT lock(LPRECT lpDestRect, SurfaceDescription * lpDDSurfaceDesc, DWORD dwFlags, HANDLE hEvent)
     {
         log(LogLevel::Trace) << "Lock() started.";
         HRESULT result;
@@ -230,8 +247,8 @@ public:
                     /// Do nothing.
                     /// N.B. Copy only part of surface description which client application can understood
                     /// because we don't want to ruin their memory.
-                    std::copy(reinterpret_cast<unsigned char *>(&it->second.DDSurfaceDesc),
-                            reinterpret_cast<unsigned char *>(&it->second.DDSurfaceDesc) + it->second.DDSurfaceDesc.dwSize,
+                    std::copy(reinterpret_cast<unsigned char *>(&it->second.surface_description),
+                            reinterpret_cast<unsigned char *>(&it->second.surface_description) + it->second.surface_description.dwSize,
                             reinterpret_cast<unsigned char *>(lpDDSurfaceDesc));
                     it->second.fillSurfaceDescription(*lpDDSurfaceDesc);
                     result = DD_OK;
@@ -243,6 +260,7 @@ public:
                     {
                         auto it = buffers.emplace(std::piecewise_construct, std::forward_as_tuple(lpDestRect),
                                 std::forward_as_tuple(&scheduler, underlying, lpDDSurfaceDesc, dwFlags)).first;
+                        ptr_rect.emplace(it->second.data.data(), it->first);
                         it->second.fillSurfaceDescription(*lpDDSurfaceDesc);
                         HRESULT result2 = scheduler.makeTask<HRESULT>([&]() { return underlying->Unlock(lpDestRect); });
                         /// If we failed to Unlock() we're doomed.
@@ -268,6 +286,7 @@ public:
                     {
                         it = buffers.emplace(std::piecewise_construct, std::forward_as_tuple(lpDestRect),
                                 std::forward_as_tuple(&scheduler, underlying, lpDDSurfaceDesc, dwFlags)).first;
+                        ptr_rect.emplace(it->second.data.data(), it->first);
                         it->second.fillSurfaceDescription(*lpDDSurfaceDesc);
                     }
                 }
@@ -294,43 +313,59 @@ public:
         return result;
     }
 
-    virtual __stdcall HRESULT ReleaseDC(HDC arg)
+    HRESULT releaseDC(HDC arg)
     {
         log() << "ReleaseDC.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->ReleaseDC(arg); });
     }
 
-    virtual __stdcall HRESULT Restore()
+    HRESULT restore()
     {
         log() << "Restore.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->Restore(); });
     }
 
-    virtual __stdcall HRESULT SetClipper(LPDIRECTDRAWCLIPPER arg)
+    HRESULT setClipper(LPDIRECTDRAWCLIPPER arg)
     {
         log() << "SetClipper.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->SetClipper(arg); });
     }
 
-    virtual __stdcall HRESULT SetColorKey(DWORD arg1, LPDDCOLORKEY arg2)
+    HRESULT setColorKey(DWORD arg1, LPDDCOLORKEY arg2)
     {
         log() << "SetColorKey.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->SetColorKey(arg1, arg2); });
     }
 
-    virtual __stdcall HRESULT SetOverlayPosition(LONG arg1, LONG arg2)
+    HRESULT setOverlayPosition(LONG arg1, LONG arg2)
     {
         log() << "SetOverlayPosition.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->SetOverlayPosition(arg1, arg2); });
     }
 
-    virtual __stdcall HRESULT SetPalette(LPDIRECTDRAWPALETTE arg)
+    HRESULT setPalette(LPDIRECTDRAWPALETTE arg)
     {
         log() << "SetPalette.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->SetPalette(arg); });
     }
 
-    virtual __stdcall HRESULT Unlock(LPRECT lpRect)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT unlock(LPVOID lpSurface)
+    {
+        auto it = ptr_rect.find(static_cast<unsigned char *>(lpSurface));
+        if (it != ptr_rect.end())
+        {
+            return unlock(&it->second.rect);
+        }
+        log(LogLevel::Trace) << "Unlock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
+            << ", lpSurface=" << std::hex << std::setfill('0') << std::setw(8) << lpSurface << std::dec << ").";
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().Unlock(lpSurface); });
+        log(LogLevel::Trace) << "Unlock() finished.";
+        return result;
+    }
+
+    template <typename MyInterface = OriginalSurface>
+    HRESULT unlock(LPRECT lpRect)
     {
         log(LogLevel::Trace) << "Unlock(this=" << std::hex << std::setfill('0') << std::setw(8) << this << std::dec
             << ", rect=" << (lpRect == nullptr ? std::string("NULL")
@@ -347,16 +382,11 @@ public:
                 /// Okay, let's check if we have entire buffer.
                 auto entire_it = buffers.find(nullptr);
                 if (lpRect->top == 0 && lpRect->left == 0 && entire_it != buffers.end()
-                    && (entire_it->second.width == lpRect->right && entire_it->second.height == lpRect->bottom
-                        || lpRect->right == 0 && lpRect->bottom == 0))
+                        && (entire_it->second.width == lpRect->right && entire_it->second.height == lpRect->bottom
+                            || lpRect->right == 0 && lpRect->bottom == 0))
                 {
                     it = entire_it;
                 }
-            }
-            if (Constants::AllowTrashInSurfaceUnlockRect && it == buffers.end() && buffers.size() == 1)
-            {
-                /// Okay, if we have only one buffer, use it.
-                it = buffers.begin();
             }
             if (it != buffers.end())
             {
@@ -368,120 +398,134 @@ public:
                 else
                 {
                     it->second.render();
+                    ptr_rect.erase(it->second.data.data());
                     buffers.erase(it);
-                    result = scheduler.makeTask<HRESULT>([&]() { return underlying->Unlock(lpRect); });
+                    result = scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().Unlock(lpRect); });
                 }
             }
             else
             {
                 log(LogLevel::Error) << "Unlocking unknown rect.";
-                result = scheduler.makeTask<HRESULT>([&]() { return underlying->Unlock(lpRect); });
+                result = scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().Unlock(lpRect); });
             }
         }
         else
         {
-            result = scheduler.makeTask<HRESULT>([&]() { return underlying->Unlock(lpRect); });
+            result = scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().Unlock(lpRect); });
         }
         log(LogLevel::Trace) << "Unlock() finished.";
         return result;
     }
 
-    virtual __stdcall HRESULT UpdateOverlay(LPRECT arg1, LPDIRECTDRAWSURFACE7 arg2, LPRECT arg3, DWORD arg4, LPDDOVERLAYFX arg5)
+    HRESULT updateOverlay(LPRECT arg1, OriginalSurface * arg2, LPRECT arg3, DWORD arg4, LPDDOVERLAYFX arg5)
     {
         log() << "UpdateOverlay.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->UpdateOverlay(arg1, surface_holder.getOriginalSurface(arg2), arg3, arg4, arg5); });
     }
 
-    virtual __stdcall HRESULT UpdateOverlayDisplay(DWORD arg)
+    HRESULT updateOverlayDisplay(DWORD arg)
     {
         log() << "UpdateOverlayDisplay.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->UpdateOverlayDisplay(arg); });
     }
 
-    virtual __stdcall HRESULT UpdateOverlayZOrder(DWORD arg1, LPDIRECTDRAWSURFACE7 arg2)
+    HRESULT updateOverlayZOrder(DWORD arg1, OriginalSurface * arg2)
     {
         log() << "UpdateOverlayZOrder.";
         return scheduler.makeTask<HRESULT>([&]() { return underlying->UpdateOverlayZOrder(arg1, surface_holder.getOriginalSurface(arg2)); });
     }
 
-    virtual __stdcall HRESULT GetDDInterface(LPVOID FAR * lplpDD)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT getDDInterface(LPVOID FAR * lplpDD)
     {
         log() << "GetDDInterface.";
         LPVOID lpDD;
-        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return underlying->GetDDInterface(&lpDD); });
+        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().GetDDInterface(&lpDD); });
         *lplpDD = static_cast<LPVOID>(&surface_holder);
         return result;
     }
 
-    virtual __stdcall HRESULT PageLock(DWORD arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT pageLock(DWORD arg)
     {
         log() << "PageLock.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->PageLock(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().PageLock(arg); });
     }
 
-    virtual __stdcall HRESULT PageUnlock(DWORD arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT pageUnlock(DWORD arg)
     {
         log() << "PageUnlock.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->PageUnlock(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().PageUnlock(arg); });
     }
 
-    virtual __stdcall HRESULT SetSurfaceDesc(LPDDSURFACEDESC2 arg1, DWORD arg2)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT setSurfaceDesc(SurfaceDescription * arg1, DWORD arg2)
     {
         log() << "SetSurfaceDesc.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetSurfaceDesc(arg1, arg2); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().SetSurfaceDesc(arg1, arg2); });
     }
 
-    virtual __stdcall HRESULT SetPrivateData(REFGUID arg1, LPVOID arg2, DWORD arg3, DWORD arg4)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT setPrivateData(REFGUID arg1, LPVOID arg2, DWORD arg3, DWORD arg4)
     {
         log() << "SetPrivateData.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetPrivateData(arg1, arg2, arg3, arg4); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().SetPrivateData(arg1, arg2, arg3, arg4); });
     }
 
-    virtual __stdcall HRESULT GetPrivateData(REFGUID arg1, LPVOID arg2, LPDWORD arg3)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT getPrivateData(REFGUID arg1, LPVOID arg2, LPDWORD arg3)
     {
         log() << "GetPrivateData.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetPrivateData(arg1, arg2, arg3); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().GetPrivateData(arg1, arg2, arg3); });
     }
 
-    virtual __stdcall HRESULT FreePrivateData(REFGUID arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT freePrivateData(REFGUID arg)
     {
         log() << "FreePrivateData.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->FreePrivateData(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().FreePrivateData(arg); });
     }
 
-    virtual __stdcall HRESULT GetUniquenessValue(LPDWORD arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT getUniquenessValue(LPDWORD arg)
     {
         log() << "GetUniquenessValue.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetUniquenessValue(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().GetUniquenessValue(arg); });
     }
 
-    virtual __stdcall HRESULT ChangeUniquenessValue()
+    template <typename MyInterface = OriginalSurface>
+    HRESULT changeUniquenessValue()
     {
         log() << "ChangeUniquenessValue.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->ChangeUniquenessValue(); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().ChangeUniquenessValue(); });
     }
 
-    virtual __stdcall HRESULT SetPriority(DWORD arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT setPriority(DWORD arg)
     {
         log() << "SetPriority.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetPriority(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().SetPriority(arg); });
     }
 
-    virtual __stdcall HRESULT GetPriority(LPDWORD arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT getPriority(LPDWORD arg)
     {
         log() << "GetPriority.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetPriority(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().GetPriority(arg); });
     }
 
-    virtual __stdcall HRESULT SetLOD(DWORD arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT setLOD(DWORD arg)
     {
         log() << "SetLOD.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->SetLOD(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().SetLOD(arg); });
     }
 
-    virtual __stdcall HRESULT GetLOD(LPDWORD arg)
+    template <typename MyInterface = OriginalSurface>
+    HRESULT getLOD(LPDWORD arg)
     {
         log() << "GetLOD.";
-        return scheduler.makeTask<HRESULT>([&]() { return underlying->GetLOD(arg); });
+        return scheduler.makeTask<HRESULT>([&]() { return getUnderlying<MyInterface>().GetLOD(arg); });
     }
 };

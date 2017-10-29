@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <list>
@@ -26,7 +27,7 @@ class Scheduler
     std::condition_variable work_pending;
     std::mutex mutex_pending;
 
-    bool initialized = false;
+    std::once_flag initialized;
     volatile bool shutting_down = false;
 
     std::thread worker;
@@ -38,47 +39,49 @@ public:
 
     inline void initialize()
     {
-        if (initialized)
-        {
-            return;
-        }
-        initialized = true;
         if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
-            worker = std::thread([this]()
+            std::call_once(initialized, [this]()
             {
-                while (!shutting_down)
+                worker = std::thread([this]()
                 {
-                    std::unique_lock<std::mutex> lock(mutex_pending);
-                    work_pending.wait(lock, [&]() { return !tasks.empty() || shutting_down; });
-                    std::list<Task> my_tasks = std::move(tasks);
-                    lock.unlock();
-
-                    for (auto & task : my_tasks)
+                    while (!shutting_down)
                     {
-                        task();
+                        std::unique_lock<std::mutex> lock(mutex_pending);
+                        work_pending.wait_for(lock, std::chrono::milliseconds(200), [&]() { return !tasks.empty() || shutting_down; });
+                        std::list<Task> my_tasks = std::move(tasks);
+                        lock.unlock();
+
+                        for (auto & task : my_tasks)
+                        {
+                            task();
+                        }
                     }
-                }
+                });
             });
         }
     }
 
     ~Scheduler()
     {
+        log() << "~Scheduler.";
         if (Constants::EnablePrimarySurfaceBackgroundBuffering)
         {
-            {
-                std::lock_guard<std::mutex> lock(mutex_pending);
-                shutting_down = true;
-            }
-            /// FIXME. If we notify work_pending, loader will enter deadlock.
-
             if (worker.joinable())
             {
-                /// FIXME. join() would cause a deadlock because we are in DllMain().
-                worker.detach();
+                {
+                    std::lock_guard<std::mutex> lock(mutex_pending);
+                    shutting_down = true;
+                }
+                work_pending.notify_one();
+                worker.join();
             }
         }
+    }
+
+    void shutDown()
+    {
+        shutting_down = true;
     }
 
     /// TODO. Use std::invoke_result_t<SpecificTask> in 2018.

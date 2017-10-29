@@ -6,7 +6,9 @@
 #include <windows.h>
 #include <ddraw.h>
 
-#include "DirectDraw7.h"
+#include <interface/DirectDraw.h>
+#include <proxy/DirectDraw.h>
+#include "DirectDrawFinal.h"
 #include "Scheduler.h"
 #include "Logger.h"
 
@@ -17,7 +19,7 @@ class DirectDrawLibrary
     static HRESULT WINAPI __stdcall (* OriginalDirectDrawCreate)(GUID FAR * lpGuid, LPDIRECTDRAW * lplpDD, IUnknown FAR * pUnkOuter);
     static HRESULT WINAPI __stdcall (* OriginalDirectDrawCreateEx)(GUID FAR * lpGuid, LPVOID * lplpDD, REFIID iid, IUnknown FAR * pUnkOuter);
     static HRESULT WINAPI __stdcall (* OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
-    static Scheduler scheduler;
+    static Scheduler * scheduler;
 
     static Logger log;
 
@@ -52,10 +54,14 @@ public:
         {
             throw std::runtime_error("Can't get address of DirectDrawEnumerate.");
         }
+        scheduler = new Scheduler();
     }
 
     static void destroy()
     {
+        log() << "Unloading.";
+        scheduler->shutDown();
+        /// Won't free scheduler to avoid loader deadlock.
         FreeLibrary(hdll);
     }
 
@@ -63,10 +69,11 @@ public:
     {
         log() << "DirectDrawCreate.";
         LPDIRECTDRAW lpDD = nullptr;
-        HRESULT result = scheduler.makeTask<HRESULT>([&]() { return OriginalDirectDrawCreate(lpGUID, &lpDD, pUnkOuter); });
+        HRESULT result = scheduler->makeTask<HRESULT>([&]() { return OriginalDirectDrawCreate(lpGUID, &lpDD, pUnkOuter); });
         if (lpDD != nullptr)
         {
-            *lplpDD = reinterpret_cast<IDirectDraw *>(new DirectDraw7(scheduler, reinterpret_cast<IDirectDraw7 *>(lpDD)));
+            *lplpDD = reinterpret_cast<IDirectDraw *>(static_cast<interface::DirectDraw *>(
+                    new DirectDrawFinal<proxy::DirectDraw>(*scheduler, reinterpret_cast<interface::DirectDraw *>(lpDD))));
         }
         else
         {
@@ -78,7 +85,7 @@ public:
     static HRESULT WINAPI DirectDrawEnumerate(LPDDENUMCALLBACK lpCallback, LPVOID lpContext)
     {
         log() << "DirectDrawEnumerate.";
-        return scheduler.makeTask<HRESULT>([&]() { return OriginalDirectDrawEnumerate(lpCallback, lpContext); });
+        return scheduler->makeTask<HRESULT>([&]() { return OriginalDirectDrawEnumerate(lpCallback, lpContext); });
     }
 };
 
@@ -86,5 +93,5 @@ HMODULE DirectDrawLibrary::hdll;
 HRESULT WINAPI __stdcall (* DirectDrawLibrary::OriginalDirectDrawCreate)(GUID FAR * lpGuid, LPDIRECTDRAW * lplpDD, IUnknown FAR * pUnkOuter);
 HRESULT WINAPI __stdcall (* DirectDrawLibrary::OriginalDirectDrawCreateEx)(GUID FAR * lpGuid, LPVOID * lplpDD, REFIID iid, IUnknown FAR * pUnkOuter);
 HRESULT WINAPI __stdcall (* DirectDrawLibrary::OriginalDirectDrawEnumerate)(LPDDENUMCALLBACK lpCallback, LPVOID lpContext);
-Scheduler DirectDrawLibrary::scheduler;
+Scheduler * DirectDrawLibrary::scheduler;
 Logger DirectDrawLibrary::log("DirectDrawLibrary");

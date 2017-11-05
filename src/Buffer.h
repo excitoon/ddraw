@@ -17,9 +17,11 @@
 #include "Scheduler.h"
 
 
-template <typename InterfaceDirectDrawSurface, typename DirectDrawSurfaceDescription>
+template <typename InterfaceDirectDrawSurface>
 class Buffer
 {
+    using SurfaceDescription = typename InterfaceDirectDrawSurface::SurfaceDescription;
+
     inline unsigned short packHiColor(unsigned color)
     {
         unsigned char r = (color >> 16) & 0x1F;
@@ -93,7 +95,7 @@ public:
 
     void * underlying = nullptr;
     std::vector<unsigned char> data;
-    DirectDrawSurfaceDescription surface_description;
+    SurfaceDescription surface_description;
     unsigned lock_flags;
     unsigned width;
     unsigned client_width;
@@ -104,7 +106,7 @@ public:
     {
     }
 
-    Buffer(Scheduler * scheduler, InterfaceDirectDrawSurface * surface, DirectDrawSurfaceDescription * description, unsigned lock_flags):
+    Buffer(Scheduler * scheduler, InterfaceDirectDrawSurface * surface, SurfaceDescription * description, unsigned lock_flags):
         scheduler(scheduler),
         surface(surface),
         underlying(description->lpSurface),
@@ -170,7 +172,7 @@ public:
         }
     }
 
-    void fillSurfaceDescription(DirectDrawSurfaceDescription & description)
+    void fillSurfaceDescription(SurfaceDescription & description)
     {
         description.lpSurface = data.data();
         description.lPitch = client_width * 2;

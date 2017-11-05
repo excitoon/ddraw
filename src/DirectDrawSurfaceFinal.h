@@ -7,7 +7,6 @@
 
 #include <windows.h>
 
-#include <interface/DirectDrawSurface.h>
 #include "Buffer.h"
 #include "Constants.h"
 #include "LogLevel.h"
@@ -17,12 +16,13 @@
 
 
 template <template <typename Final> typename Proxy, typename SurfaceHolder>
-class DirectDrawSurfaceFinal : public Proxy<DirectDrawSurfaceFinal<Proxy, SurfaceHolder>>, public UnknownFinal<DirectDrawSurfaceFinal<Proxy, SurfaceHolder>, interface::DirectDrawSurface>
+class DirectDrawSurfaceFinal : public Proxy<DirectDrawSurfaceFinal<Proxy, SurfaceHolder>>,
+        public UnknownFinal<DirectDrawSurfaceFinal<Proxy, SurfaceHolder>, typename SurfaceHolder::OriginalSurface>
 {
     using Surface = DirectDrawSurfaceFinal<Proxy, SurfaceHolder>;
-    using OriginalSurface = interface::DirectDrawSurface;
-    using SurfaceDescription = DDSURFACEDESC;
-    using SurfaceCapabilities = DDSCAPS;
+    using OriginalSurface = typename SurfaceHolder::OriginalSurface;
+    using SurfaceDescription = typename OriginalSurface::SurfaceDescription;
+    using SurfaceCapabilities = typename OriginalSurface::SurfaceCapabilities;
 
     Scheduler & scheduler;
     OriginalSurface * underlying;
@@ -30,9 +30,9 @@ class DirectDrawSurfaceFinal : public Proxy<DirectDrawSurfaceFinal<Proxy, Surfac
 
     bool is_primary;
 
-    using SurfaceBuffer = Buffer<OriginalSurface, SurfaceDescription>;
-    std::unordered_map<SurfaceBuffer::Key, SurfaceBuffer, SurfaceBuffer::Key::Hasher> buffers;
-    std::unordered_map<unsigned char *, SurfaceBuffer::Key> ptr_rect;
+    using SurfaceBuffer = Buffer<OriginalSurface>;
+    std::unordered_map<typename SurfaceBuffer::Key, SurfaceBuffer, typename SurfaceBuffer::Key::Hasher> buffers;
+    std::unordered_map<unsigned char *, typename SurfaceBuffer::Key> ptr_rect;
 
     Logger log = Logger("DirectDrawSurface");
 

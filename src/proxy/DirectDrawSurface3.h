@@ -18,7 +18,9 @@ class DirectDrawSurface3 : public interface::DirectDrawSurface3, public Unknown<
     }
 
 public:
-    virtual __stdcall HRESULT AddAttachedSurface(interface::DirectDrawSurface3 * arg) override final
+    using Interface = interface::DirectDrawSurface3;
+
+    virtual __stdcall HRESULT AddAttachedSurface(Interface * arg) override final
     {
         return getFinal().addAttachedSurface(arg);
     }
@@ -28,7 +30,7 @@ public:
         return getFinal().addOverlayDirtyRect(arg);
     }
 
-    virtual __stdcall HRESULT Blt(LPRECT arg1, interface::DirectDrawSurface3 * arg2, LPRECT arg3, DWORD arg4, LPDDBLTFX arg5) override final
+    virtual __stdcall HRESULT Blt(LPRECT arg1, Interface * arg2, LPRECT arg3, DWORD arg4, LPDDBLTFX arg5) override final
     {
         return getFinal().blt(arg1, arg2, arg3, arg4, arg5);
     }
@@ -38,12 +40,12 @@ public:
         return getFinal().bltBatch(arg1, arg2, arg3);
     }
 
-    virtual __stdcall HRESULT BltFast(DWORD arg1, DWORD arg2, interface::DirectDrawSurface3 * arg3, LPRECT arg4, DWORD arg5) override final
+    virtual __stdcall HRESULT BltFast(DWORD arg1, DWORD arg2, Interface * arg3, LPRECT arg4, DWORD arg5) override final
     {
         return getFinal().bltFast(arg1, arg2, arg3, arg4, arg5);
     }
 
-    virtual __stdcall HRESULT DeleteAttachedSurface(DWORD arg1, interface::DirectDrawSurface3 * arg2) override final
+    virtual __stdcall HRESULT DeleteAttachedSurface(DWORD arg1, Interface * arg2) override final
     {
         return getFinal().deleteAttachedSurface(arg1, arg2);
     }
@@ -58,12 +60,12 @@ public:
         return getFinal().enumOverlayZOrders(arg1, arg2, arg3);
     }
 
-    virtual __stdcall HRESULT Flip(interface::DirectDrawSurface3 * arg1, DWORD arg2) override final
+    virtual __stdcall HRESULT Flip(Interface * arg1, DWORD arg2) override final
     {
         return getFinal().flip(arg1, arg2);
     }
 
-    virtual __stdcall HRESULT GetAttachedSurface(LPDDSCAPS arg1, interface::DirectDrawSurface3 * FAR * arg2) override final
+    virtual __stdcall HRESULT GetAttachedSurface(SurfaceCapabilities * arg1, Interface * FAR * arg2) override final
     {
         return getFinal().getAttachedSurface(arg1, arg2);
     }
@@ -73,7 +75,7 @@ public:
         return getFinal().getBltStatus(arg);
     }
 
-    virtual __stdcall HRESULT GetCaps(LPDDSCAPS arg) override final
+    virtual __stdcall HRESULT GetCaps(SurfaceCapabilities * arg) override final
     {
         return getFinal().getCaps(arg);
     }
@@ -113,12 +115,12 @@ public:
         return getFinal().getPixelFormat(arg);
     }
 
-    virtual __stdcall HRESULT GetSurfaceDesc(LPDDSURFACEDESC arg) override final
+    virtual __stdcall HRESULT GetSurfaceDesc(SurfaceDescription * arg) override final
     {
         return getFinal().getSurfaceDesc(arg);
     }
 
-    virtual __stdcall HRESULT Initialize(LPDIRECTDRAW arg1, LPDDSURFACEDESC arg2) override final
+    virtual __stdcall HRESULT Initialize(LPDIRECTDRAW arg1, SurfaceDescription * arg2) override final
     {
         return getFinal().initialize(arg1, arg2);
     }
@@ -128,7 +130,7 @@ public:
         return getFinal().isLost();
     }
 
-    virtual __stdcall HRESULT Lock(LPRECT arg1, LPDDSURFACEDESC arg2, DWORD arg3, HANDLE arg4) override final
+    virtual __stdcall HRESULT Lock(LPRECT arg1, SurfaceDescription * arg2, DWORD arg3, HANDLE arg4) override final
     {
         return getFinal().lock(arg1, arg2, arg3, arg4);
     }
@@ -168,7 +170,7 @@ public:
         return getFinal().unlock(arg);
     }
 
-    virtual __stdcall HRESULT UpdateOverlay(LPRECT arg1, interface::DirectDrawSurface3 * arg2, LPRECT arg3, DWORD arg4, LPDDOVERLAYFX arg5) override final
+    virtual __stdcall HRESULT UpdateOverlay(LPRECT arg1, Interface * arg2, LPRECT arg3, DWORD arg4, LPDDOVERLAYFX arg5) override final
     {
         return getFinal().updateOverlay(arg1, arg2, arg3, arg4, arg5);
     }
@@ -178,7 +180,7 @@ public:
         return getFinal().updateOverlayDisplay(arg);
     }
 
-    virtual __stdcall HRESULT UpdateOverlayZOrder(DWORD arg1, interface::DirectDrawSurface3 * arg2) override final
+    virtual __stdcall HRESULT UpdateOverlayZOrder(DWORD arg1, Interface * arg2) override final
     {
         return getFinal().updateOverlayZOrder(arg1, arg2);
     }
@@ -198,7 +200,7 @@ public:
         return getFinal().pageUnlock(arg);
     }
 
-    virtual __stdcall HRESULT SetSurfaceDesc(LPDDSURFACEDESC arg1, DWORD arg2) override final
+    virtual __stdcall HRESULT SetSurfaceDesc(SurfaceDescription * arg1, DWORD arg2) override final
     {
         return getFinal().setSurfaceDesc(arg1, arg2);
     }

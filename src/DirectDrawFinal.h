@@ -5,9 +5,6 @@
 
 #include <windows.h>
 
-#include <interface/DirectDraw.h>
-#include <interface/DirectDrawSurface.h>
-#include <proxy/DirectDrawSurface.h>
 #include "Logger.h"
 #include "Constants.h"
 #include "DirectDrawSurfaceFinal.h"
@@ -15,17 +12,20 @@
 #include "UnknownFinal.h"
 
 
-template <template <typename Final> typename Proxy>
-class DirectDrawFinal : public Proxy<DirectDrawFinal<Proxy>>, public UnknownFinal<DirectDrawFinal<Proxy>, interface::DirectDraw>
+template <template <typename Final> typename Proxy, template <typename Final> typename SurfaceProxy>
+class DirectDrawFinal : public Proxy<DirectDrawFinal<Proxy, SurfaceProxy>>,
+        public UnknownFinal<DirectDrawFinal<Proxy, SurfaceProxy>, typename Proxy<DirectDrawFinal<Proxy, SurfaceProxy>>::Interface>
 {
-    using DirectDraw = DirectDrawFinal<Proxy>;
-    using OriginalDirectDraw = interface::DirectDraw;
-    using DirectDrawCapabilities = DDCAPS;
-    using Surface = DirectDrawSurfaceFinal<proxy::DirectDrawSurface, DirectDraw>;
-    using OriginalSurface = interface::DirectDrawSurface;
-    using SurfaceDescription = DDSURFACEDESC;
-    using SurfaceCapabilities = DDSCAPS;
+public:
+    using DirectDraw = DirectDrawFinal<Proxy, SurfaceProxy>;
+    using OriginalDirectDraw = typename Proxy<DirectDraw>::Interface;
+    using DirectDrawCapabilities = typename OriginalDirectDraw::DirectDrawCapabilities;
+    using Surface = DirectDrawSurfaceFinal<SurfaceProxy, DirectDraw>;
+    using OriginalSurface = typename OriginalDirectDraw::Surface;
+    using SurfaceDescription = typename OriginalDirectDraw::SurfaceDescription;
+    using SurfaceCapabilities = typename OriginalDirectDraw::SurfaceCapabilities;
 
+private:
     Scheduler & scheduler;
     OriginalDirectDraw * underlying;
     std::unordered_map<OriginalSurface *, Surface *> wrapped_surfaces;

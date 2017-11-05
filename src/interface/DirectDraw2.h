@@ -14,7 +14,11 @@ class DirectDrawSurface;
 class DirectDraw2 : virtual public Unknown
 {
 public:
-    using EnumSurfacesCallback = __stdcall PASCAL HRESULT (*)(DirectDrawSurface *, DDSURFACEDESC *, void *);
+    using DirectDrawCapabilities = DDCAPS;
+    using Surface = DirectDrawSurface;
+    using SurfaceDescription = DDSURFACEDESC;
+    using SurfaceCapabilities = DDSCAPS;
+    using EnumSurfacesCallback = __stdcall PASCAL HRESULT (*)(DirectDrawSurface *, SurfaceDescription *, void *);
 
     virtual __stdcall HRESULT Compact() = 0;
     virtual __stdcall HRESULT CreateClipper(DWORD arg1, LPDIRECTDRAWCLIPPER FAR * arg2, IUnknown FAR * arg3) = 0;
@@ -24,7 +28,7 @@ public:
     virtual __stdcall HRESULT EnumDisplayModes(DWORD arg1, LPDDSURFACEDESC arg2, LPVOID arg3, LPDDENUMMODESCALLBACK arg4) = 0;
     virtual __stdcall HRESULT EnumSurfaces(DWORD arg1, LPDDSURFACEDESC arg2, LPVOID arg3, EnumSurfacesCallback arg4) = 0;
     virtual __stdcall HRESULT FlipToGDISurface() = 0;
-    virtual __stdcall HRESULT GetCaps(LPDDCAPS arg1, LPDDCAPS arg2) = 0;
+    virtual __stdcall HRESULT GetCaps(DirectDrawCapabilities * arg1, DirectDrawCapabilities * arg2) = 0;
     virtual __stdcall HRESULT GetDisplayMode(LPDDSURFACEDESC arg) = 0;
     virtual __stdcall HRESULT GetFourCCCodes(LPDWORD arg1, LPDWORD arg2) = 0;
     virtual __stdcall HRESULT GetGDISurface(DirectDrawSurface * FAR * arg) = 0;
@@ -36,7 +40,7 @@ public:
     virtual __stdcall HRESULT SetCooperativeLevel(HWND arg1, DWORD arg2) = 0;
     virtual __stdcall HRESULT SetDisplayMode(DWORD arg1, DWORD arg2, DWORD arg3, DWORD arg4, DWORD arg5) = 0;
     virtual __stdcall HRESULT WaitForVerticalBlank(DWORD arg1, HANDLE arg2) = 0;
-    virtual __stdcall HRESULT GetAvailableVidMem(LPDDSCAPS arg1, LPDWORD arg2, LPDWORD arg3) = 0;
+    virtual __stdcall HRESULT GetAvailableVidMem(SurfaceCapabilities * arg1, LPDWORD arg2, LPDWORD arg3) = 0;
 };
 
 }

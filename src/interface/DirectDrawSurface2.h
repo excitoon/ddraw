@@ -12,7 +12,9 @@ namespace interface
 class DirectDrawSurface2 : virtual public Unknown
 {
 public:
-    using EnumSurfacesCallback = __stdcall PASCAL HRESULT (*)(DirectDrawSurface2 *, DDSURFACEDESC *, void *);
+    using SurfaceDescription = DDSURFACEDESC;
+    using SurfaceCapabilities = DDSCAPS;
+    using EnumSurfacesCallback = __stdcall PASCAL HRESULT (*)(DirectDrawSurface2 *, SurfaceDescription *, void *);
 
     virtual __stdcall HRESULT AddAttachedSurface(DirectDrawSurface2 * arg) = 0;
     virtual __stdcall HRESULT AddOverlayDirtyRect(LPRECT arg) = 0;
@@ -23,9 +25,9 @@ public:
     virtual __stdcall HRESULT EnumAttachedSurfaces(LPVOID arg1, EnumSurfacesCallback arg2) = 0;
     virtual __stdcall HRESULT EnumOverlayZOrders(DWORD arg1, LPVOID arg2, EnumSurfacesCallback arg3) = 0;
     virtual __stdcall HRESULT Flip(DirectDrawSurface2 * arg1, DWORD arg2) = 0;
-    virtual __stdcall HRESULT GetAttachedSurface(LPDDSCAPS arg1, DirectDrawSurface2 * FAR * arg2) = 0;
+    virtual __stdcall HRESULT GetAttachedSurface(SurfaceCapabilities * arg1, DirectDrawSurface2 * FAR * arg2) = 0;
     virtual __stdcall HRESULT GetBltStatus(DWORD arg) = 0;
-    virtual __stdcall HRESULT GetCaps(LPDDSCAPS arg) = 0;
+    virtual __stdcall HRESULT GetCaps(SurfaceCapabilities * arg) = 0;
     virtual __stdcall HRESULT GetClipper(LPDIRECTDRAWCLIPPER FAR * arg) = 0;
     virtual __stdcall HRESULT GetColorKey(DWORD arg1, LPDDCOLORKEY arg2) = 0;
     virtual __stdcall HRESULT GetDC(HDC FAR * arg) = 0;
@@ -33,10 +35,10 @@ public:
     virtual __stdcall HRESULT GetOverlayPosition(LPLONG arg1, LPLONG arg2) = 0;
     virtual __stdcall HRESULT GetPalette(LPDIRECTDRAWPALETTE FAR * arg) = 0;
     virtual __stdcall HRESULT GetPixelFormat(LPDDPIXELFORMAT arg) = 0;
-    virtual __stdcall HRESULT GetSurfaceDesc(LPDDSURFACEDESC arg) = 0;
-    virtual __stdcall HRESULT Initialize(LPDIRECTDRAW arg1, LPDDSURFACEDESC arg2) = 0;
+    virtual __stdcall HRESULT GetSurfaceDesc(SurfaceDescription * arg) = 0;
+    virtual __stdcall HRESULT Initialize(LPDIRECTDRAW arg1, SurfaceDescription * arg2) = 0;
     virtual __stdcall HRESULT IsLost() = 0;
-    virtual __stdcall HRESULT Lock(LPRECT arg1, LPDDSURFACEDESC arg2, DWORD arg3, HANDLE arg4) = 0;
+    virtual __stdcall HRESULT Lock(LPRECT arg1, SurfaceDescription * arg2, DWORD arg3, HANDLE arg4) = 0;
     virtual __stdcall HRESULT ReleaseDC(HDC arg) = 0;
     virtual __stdcall HRESULT Restore() = 0;
     virtual __stdcall HRESULT SetClipper(LPDIRECTDRAWCLIPPER arg) = 0;

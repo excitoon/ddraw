@@ -18,6 +18,8 @@ class DirectDraw : public interface::DirectDraw, public Unknown<Final>
     }
 
 public:
+    using Interface = interface::DirectDraw;
+
     virtual __stdcall HRESULT Compact() override final
     {
         return getFinal().compact();
@@ -33,22 +35,22 @@ public:
         return getFinal().createPalette(arg1, arg2, arg3, arg4);
     }
 
-    virtual __stdcall HRESULT CreateSurface(LPDDSURFACEDESC arg1, interface::DirectDrawSurface * FAR * arg2, IUnknown FAR * arg3) override final
+    virtual __stdcall HRESULT CreateSurface(SurfaceDescription * arg1, Surface * FAR * arg2, IUnknown FAR * arg3) override final
     {
         return getFinal().createSurface(arg1, arg2, arg3);
     }
 
-    virtual __stdcall HRESULT DuplicateSurface(interface::DirectDrawSurface * arg1, interface::DirectDrawSurface * FAR * arg2) override final
+    virtual __stdcall HRESULT DuplicateSurface(Surface * arg1, Surface * FAR * arg2) override final
     {
         return getFinal().duplicateSurface(arg1, arg2);
     }
 
-    virtual __stdcall HRESULT EnumDisplayModes(DWORD arg1, LPDDSURFACEDESC arg2, LPVOID arg3, LPDDENUMMODESCALLBACK arg4) override final
+    virtual __stdcall HRESULT EnumDisplayModes(DWORD arg1, SurfaceDescription * arg2, LPVOID arg3, LPDDENUMMODESCALLBACK arg4) override final
     {
         return getFinal().enumDisplayModes(arg1, arg2, arg3, arg4);
     }
 
-    virtual __stdcall HRESULT EnumSurfaces(DWORD arg1, LPDDSURFACEDESC arg2, LPVOID arg3, EnumSurfacesCallback arg4) override final
+    virtual __stdcall HRESULT EnumSurfaces(DWORD arg1, SurfaceDescription * arg2, LPVOID arg3, EnumSurfacesCallback arg4) override final
     {
         return getFinal().enumSurfaces(arg1, arg2, arg3, arg4);
     }
@@ -58,12 +60,12 @@ public:
         return getFinal().flipToGDISurface();
     }
 
-    virtual __stdcall HRESULT GetCaps(LPDDCAPS arg1, LPDDCAPS arg2) override final
+    virtual __stdcall HRESULT GetCaps(DirectDrawCapabilities * arg1, DirectDrawCapabilities * arg2) override final
     {
         return getFinal().getCaps(arg1, arg2);
     }
 
-    virtual __stdcall HRESULT GetDisplayMode(LPDDSURFACEDESC arg) override final
+    virtual __stdcall HRESULT GetDisplayMode(SurfaceDescription * arg) override final
     {
         return getFinal().getDisplayMode(arg);
     }
@@ -73,7 +75,7 @@ public:
         return getFinal().getFourCCCodes(arg1, arg2);
     }
 
-    virtual __stdcall HRESULT GetGDISurface(interface::DirectDrawSurface * FAR * arg) override final
+    virtual __stdcall HRESULT GetGDISurface(Surface * FAR * arg) override final
     {
         return getFinal().getGDISurface(arg);
     }

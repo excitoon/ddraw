@@ -8,6 +8,7 @@
 
 #include <interface/DirectDraw.h>
 #include <proxy/DirectDraw.h>
+#include <proxy/DirectDrawSurface.h>
 #include "DirectDrawFinal.h"
 #include "Scheduler.h"
 #include "Logger.h"
@@ -73,7 +74,7 @@ public:
         if (lpDD != nullptr)
         {
             *lplpDD = reinterpret_cast<IDirectDraw *>(static_cast<interface::DirectDraw *>(
-                    new DirectDrawFinal<proxy::DirectDraw>(*scheduler, reinterpret_cast<interface::DirectDraw *>(lpDD))));
+                    new DirectDrawFinal<proxy::DirectDraw, proxy::DirectDrawSurface>(*scheduler, reinterpret_cast<interface::DirectDraw *>(lpDD))));
         }
         else
         {

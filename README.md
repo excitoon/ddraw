@@ -1,3 +1,5 @@
+[![Build status](https://ci.appveyor.com/api/projects/status/o46yhwbdoe1wu770?svg=true)](https://ci.appveyor.com/project/excitoon/ddraw)
+
 ### Introduction
 
 This project was started because I wanted to show my favorite game to my special one. Unfortunately, the game didn't run on latest Windows even in compatibility mode.
